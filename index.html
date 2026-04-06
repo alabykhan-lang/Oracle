@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Football Oracle Dashboard v6.1</title>
+<title>Football Oracle Dashboard v7.0</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet">
@@ -144,7 +144,6 @@
     font-size: 0.58rem; padding: 2px 5px; font-weight: 500; letter-spacing: 0.5px;
   }
 
-  /* Lineup status badges */
   .lineup-confirmed {
     display: inline-flex; align-items: center; gap: 3px;
     background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.3);
@@ -174,7 +173,6 @@
     padding: 2px 6px; font-weight: 700;
   }
 
-  /* Global scan indicator */
   .global-scan-badge {
     display: inline-flex; align-items: center; gap: 4px;
     background: rgba(0,194,255,0.1); border: 1px solid rgba(0,194,255,0.3);
@@ -182,6 +180,22 @@
     font-family: 'JetBrains Mono', monospace; font-size: 0.6rem;
     padding: 2px 7px; font-weight: 600; letter-spacing: 0.5px;
   }
+
+  /* API Status indicators */
+  .api-status-row {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;
+  }
+  .api-dot {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.56rem;
+    padding: 2px 6px; border-radius: 3px; font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--bg-deep);
+  }
+  .api-dot.green { color: var(--emerald); border-color: rgba(0,255,136,0.3); background: rgba(0,255,136,0.06); }
+  .api-dot.red { color: var(--red); border-color: rgba(255,59,92,0.3); background: rgba(255,59,92,0.06); }
+  .api-dot.grey { color: var(--text-muted); border-color: var(--border); }
+  .api-dot .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
   .accu-slip {
     background: linear-gradient(135deg, #0A1428 0%, #0D1830 100%);
@@ -234,12 +248,6 @@
     z-index: 300; transition: opacity 0.3s; white-space: nowrap;
   }
 
-  .ledger-row {
-    display: grid; grid-template-columns: 1fr auto auto auto;
-    gap: 8px; align-items: center; padding: 8px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: var(--bg-deep); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -283,7 +291,6 @@
   .no-data { text-align: center; padding: 40px 20px; color: var(--text-muted); }
   .no-data svg { margin: 0 auto 12px; display: block; }
 
-  /* League scan progress log */
   .scan-log {
     background: var(--bg-deep); border: 1px solid var(--border);
     border-radius: 5px; padding: 8px 10px;
@@ -312,7 +319,13 @@
       <div class="pulse-dot"></div>
       <div>
         <div class="bebas text-xl logo-glow" style="color:var(--gold);letter-spacing:2px;">FOOTBALL ORACLE</div>
-        <div class="mono text-xs" style="color:var(--text-muted);font-size:0.58rem;letter-spacing:1px;">GLOBAL INTELLIGENCE SYSTEM v6.2 · HEADER-FORWARDING PROXY</div>
+        <div class="mono text-xs" style="color:var(--text-muted);font-size:0.58rem;letter-spacing:1px;">GLOBAL INTELLIGENCE SYSTEM v7.0 · DIRECT API · NO PROXY</div>
+        <!-- Live API Status Row -->
+        <div class="api-status-row" id="headerStatusRow">
+          <span class="api-dot grey" id="hdrFootballDot"><span class="dot"></span>API-FOOTBALL</span>
+          <span class="api-dot grey" id="hdrOddsDot"><span class="dot"></span>ODDS-API</span>
+          <span class="api-dot grey" id="hdrAiDot"><span class="dot"></span>AI</span>
+        </div>
       </div>
     </div>
     <div class="flex items-center gap-2">
@@ -356,14 +369,14 @@
     <!-- Live scan log -->
     <div id="scanLog" class="scan-log mt-2"></div>
 
-    <!-- FIX v6: Zero-match failsafe button (hidden until triggered) -->
+    <!-- 0-match failsafe button -->
     <div id="backupRegionWrap" style="display:none;margin-top:10px;">
       <div class="mono mb-2" style="color:var(--red);font-size:0.65rem;line-height:1.5;">
-        ⚠ 0 matches found after scanning 50+ leagues. This usually means the Odds API has no events in the next 24h window for EU region.
+        ⚠ 0 matches in 24h window. Expanding to 48h...
       </div>
       <button onclick="runBackupRegionScan()" class="w-full py-2 mono rounded"
         style="background:rgba(0,194,255,0.1);border:1px solid rgba(0,194,255,0.4);color:var(--blue-accent);cursor:pointer;font-size:0.72rem;letter-spacing:1px;font-family:'JetBrains Mono',monospace;">
-        🔄 TRY BACKUP REGION (US/UK · 48H WINDOW)
+        🔄 TRY EXTENDED 48H WINDOW (US/UK/EU)
       </button>
     </div>
   </div>
@@ -468,21 +481,18 @@
 
     <div class="space-y-3">
       <div>
-        <div class="section-label mb-1">API-FOOTBALL KEY</div>
-        <input class="oracle-input" id="settingFootballKey" type="password" placeholder="Enter API-Football key...">
+        <div class="section-label mb-1">API-FOOTBALL KEY (RapidAPI)</div>
+        <input class="oracle-input" id="settingFootballKey" type="password" placeholder="Enter x-rapidapi-key...">
+        <div class="mono mt-1" style="color:var(--text-muted);font-size:0.58rem;">Used as x-rapidapi-key header → api-football.v3.rapi.net</div>
       </div>
       <div>
         <div class="section-label mb-1">THE ODDS API KEY</div>
         <input class="oracle-input" id="settingOddsKey" type="password" placeholder="Enter The-Odds-API key...">
+        <div class="mono mt-1" style="color:var(--text-muted);font-size:0.58rem;">Sent as ?apiKey= param → api.the-odds-api.com (direct)</div>
       </div>
       <div>
         <div class="section-label mb-1">OPENROUTER API KEY</div>
         <input class="oracle-input" id="settingOpenRouterKey" type="password" placeholder="Enter OpenRouter key...">
-      </div>
-      <div>
-        <div class="section-label mb-1">CORS PROXY URL</div>
-        <input class="oracle-input" id="settingCorsProxy" type="text" placeholder="https://api.allorigins.win/raw?url=">
-        <div class="mono mt-1" style="color:var(--text-muted);font-size:0.58rem;">Default: https://api.allorigins.win/raw?url= (most reliable for local HTML files)</div>
       </div>
       <div>
         <div class="section-label mb-1">SEASON (AUTO-DETECTED)</div>
@@ -510,12 +520,11 @@
 
     <div class="mt-4 p-3 rounded" style="background:rgba(0,194,255,0.05);border:1px solid rgba(0,194,255,0.15);">
       <div class="mono" style="color:var(--blue-accent);font-size:0.62rem;line-height:1.6;">
-        🔑 v6.2: API-Football via corsproxy.io — x-apisports-key header forwarded<br>
-        📡 Odds API: direct fetch, no date filter, all upcoming matches<br>
-        ⚽ Soccer filter: Football/Soccer/all group variants<br>
-        📅 Season: auto-calculated from today's date<br>
-        🛡 0-match failsafe: backup US/UK button<br>
-        🤖 AI only called for 20%+ value-gap picks
+        🚀 v7.0: DIRECT API — zero CORS proxies<br>
+        🔑 API-Football: x-rapidapi-key header (RapidAPI endpoint)<br>
+        📡 Odds API: direct fetch, apiKey param, 24-48h window<br>
+        🎯 Accu Sniper: 100+ odds via Strict Pattern selection<br>
+        ✅ Connection status live in header bar
       </div>
     </div>
 
@@ -540,7 +549,6 @@ const STORAGE_KEYS = {
   API_FOOTBALL: 'oracle_api_football',
   ODDS_API: 'oracle_odds_api',
   OPENROUTER: 'oracle_openrouter',
-  CORS_PROXY: 'oracle_cors_proxy',
   SEASON: 'oracle_season',
   EDGE: 'oracle_min_edge',
   MAX_FIXTURES: 'oracle_max_fixtures',
@@ -549,23 +557,20 @@ const STORAGE_KEYS = {
   LAST_SCAN_DATE: 'oracle_last_scan_date'
 };
 
-// FIX v6.1: Auto-derive season from today's date.
-// Football seasons run Aug–May. If current month >= 7 (July), season = current year.
-// Otherwise season = previous year. No user input needed.
+// Auto-derive season: Aug–May = previous year, Jun–Dec = current year
 function getCurrentSeason() {
   const now = new Date();
-  const month = now.getMonth(); // 0=Jan, 6=Jul
-  return month >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+  return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
 }
 
 const VALUE_GAP_THRESHOLD = 20; // percent
+
 function getSettings() {
   return {
     footballKey: localStorage.getItem(STORAGE_KEYS.API_FOOTBALL) || '',
     oddsKey: localStorage.getItem(STORAGE_KEYS.ODDS_API) || '',
     openRouterKey: localStorage.getItem(STORAGE_KEYS.OPENROUTER) || '',
-    corsProxy: localStorage.getItem(STORAGE_KEYS.CORS_PROXY) || 'https://api.allorigins.win/raw?url=',
-    season: getCurrentSeason(),   // FIX v6.1: always auto-computed, never from localStorage
+    season: getCurrentSeason(),
     minEdge: parseFloat(localStorage.getItem(STORAGE_KEYS.EDGE) || '5'),
     maxFixtures: parseInt(localStorage.getItem(STORAGE_KEYS.MAX_FIXTURES) || '40')
   };
@@ -576,7 +581,6 @@ function openSettings() {
   document.getElementById('settingFootballKey').value = s.footballKey;
   document.getElementById('settingOddsKey').value = s.oddsKey;
   document.getElementById('settingOpenRouterKey').value = s.openRouterKey;
-  document.getElementById('settingCorsProxy').value = s.corsProxy;
   document.getElementById('settingEdge').value = s.minEdge;
   document.getElementById('settingMaxFixtures').value = s.maxFixtures;
   document.getElementById('settingSeasonDisplay').textContent = `${s.season} (auto)`;
@@ -591,94 +595,92 @@ function saveSettings() {
   localStorage.setItem(STORAGE_KEYS.API_FOOTBALL, document.getElementById('settingFootballKey').value.trim());
   localStorage.setItem(STORAGE_KEYS.ODDS_API, document.getElementById('settingOddsKey').value.trim());
   localStorage.setItem(STORAGE_KEYS.OPENROUTER, document.getElementById('settingOpenRouterKey').value.trim());
-  localStorage.setItem(STORAGE_KEYS.CORS_PROXY, document.getElementById('settingCorsProxy').value.trim());
   localStorage.setItem(STORAGE_KEYS.EDGE, document.getElementById('settingEdge').value.trim());
   localStorage.setItem(STORAGE_KEYS.MAX_FIXTURES, document.getElementById('settingMaxFixtures').value.trim());
   closeSettings();
   showToast('✅ Settings saved!', 'emerald');
 }
 
+// ============================================================
+//  HEADER STATUS DOTS — live indicators
+// ============================================================
+function setHeaderDot(id, state) {
+  // state: 'green' | 'red' | 'grey'
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = `api-dot ${state}`;
+}
+
+// ============================================================
+//  CONNECTION TEST (Settings modal — direct, no proxies)
+// ============================================================
 async function testConnections() {
   const s = getSettings();
   const box = document.getElementById('testResults');
   box.style.display = 'block';
-  box.innerHTML = '<div class="mono text-xs" style="color:var(--text-muted);">Testing connections...</div>';
+  box.innerHTML = '<div class="mono text-xs" style="color:var(--text-muted);">Testing connections (direct fetch)...</div>';
   const results = [];
 
-  // Test API-Football via corsproxy.io with x-apisports-key header
+  // ── API-Football (RapidAPI direct) ──
   try {
-    const targetUrl = `https://v3.football.api-sports.io/status`;
-    const proxied = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
-    const r = await fetch(proxied, {
-      headers: { 'x-apisports-key': s.footballKey },
+    const r = await fetch('https://api-football.v3.rapi.net/v3/status', {
+      headers: {
+        'x-rapidapi-key': s.footballKey,
+        'x-rapidapi-host': 'api-football.v3.rapi.net'
+      },
       signal: AbortSignal.timeout(10000)
     });
     const d = await r.json();
-    results.push(d?.response?.account?.firstname
-      ? `<div class="mono text-xs" style="color:var(--emerald);">✅ API-Football: Connected as ${d.response.account.firstname} (${d.response.requests.current}/${d.response.requests.limit_day} req)</div>`
-      : `<div class="mono text-xs" style="color:var(--red);">❌ API-Football: ${JSON.stringify(d?.errors||d?.message||'Invalid key')}</div>`);
+    if (d?.response?.account?.firstname) {
+      setHeaderDot('hdrFootballDot', 'green');
+      results.push(`<div class="mono text-xs" style="color:var(--emerald);">✅ API-Football: Connected as ${d.response.account.firstname} (${d.response.requests.current}/${d.response.requests.limit_day} req/day)</div>`);
+    } else {
+      setHeaderDot('hdrFootballDot', 'red');
+      results.push(`<div class="mono text-xs" style="color:var(--red);">❌ API-Football: ${JSON.stringify(d?.errors || d?.message || 'Invalid key')}</div>`);
+    }
   } catch(e) {
+    setHeaderDot('hdrFootballDot', 'red');
     results.push(`<div class="mono text-xs" style="color:var(--red);">❌ API-Football: ${e.message}</div>`);
   }
 
-  // Test Odds API (via CORS proxy)
+  // ── The Odds API (direct) ──
   try {
-    const url = proxify(s.corsProxy, `https://api.the-odds-api.com/v4/sports/?apiKey=${s.oddsKey}`);
-    const r = await fetch(url);
+    const r = await fetch(`https://api.the-odds-api.com/v4/sports/?apiKey=${s.oddsKey}`, {
+      signal: AbortSignal.timeout(10000)
+    });
     const d = await r.json();
-    results.push(Array.isArray(d) ?
-      `<div class="mono text-xs" style="color:var(--emerald);">✅ The-Odds-API: Connected (${d.length} sports)</div>` :
-      `<div class="mono text-xs" style="color:var(--red);">❌ Odds API: ${d.message||'Error'}</div>`);
+    if (Array.isArray(d)) {
+      setHeaderDot('hdrOddsDot', 'green');
+      results.push(`<div class="mono text-xs" style="color:var(--emerald);">✅ The-Odds-API: Connected (${d.length} sports available)</div>`);
+    } else {
+      setHeaderDot('hdrOddsDot', 'red');
+      results.push(`<div class="mono text-xs" style="color:var(--red);">❌ Odds API: ${d.message || 'Error'}</div>`);
+    }
   } catch(e) {
+    setHeaderDot('hdrOddsDot', 'red');
     results.push(`<div class="mono text-xs" style="color:var(--red);">❌ Odds API: ${e.message}</div>`);
   }
 
-  // Test OpenRouter (direct — CORS safe)
+  // ── OpenRouter (CORS-safe) ──
   try {
     const r = await fetch('https://openrouter.ai/api/v1/models', {
-      headers: { 'Authorization': `Bearer ${s.openRouterKey}` }
+      headers: { 'Authorization': `Bearer ${s.openRouterKey}` },
+      signal: AbortSignal.timeout(10000)
     });
     const d = await r.json();
-    results.push(d?.data ?
-      `<div class="mono text-xs" style="color:var(--emerald);">✅ OpenRouter: Connected (${d.data.length} models)</div>` :
-      `<div class="mono text-xs" style="color:var(--red);">❌ OpenRouter: ${d.error?.message||'Error'}</div>`);
+    if (d?.data) {
+      setHeaderDot('hdrAiDot', 'green');
+      results.push(`<div class="mono text-xs" style="color:var(--emerald);">✅ OpenRouter: Connected (${d.data.length} models available)</div>`);
+    } else {
+      setHeaderDot('hdrAiDot', 'red');
+      results.push(`<div class="mono text-xs" style="color:var(--red);">❌ OpenRouter: ${d.error?.message || 'Error'}</div>`);
+    }
   } catch(e) {
+    setHeaderDot('hdrAiDot', 'red');
     results.push(`<div class="mono text-xs" style="color:var(--red);">❌ OpenRouter: ${e.message}</div>`);
   }
 
-  // Test CORS proxy — allorigins returns raw body, just check it responds
-  try {
-    const testTarget = `https://api.the-odds-api.com/v4/sports/?apiKey=${s.oddsKey}`;
-    const url = proxify(s.corsProxy, testTarget);
-    const r = await fetch(url);
-    results.push(r.ok
-      ? `<div class="mono text-xs" style="color:var(--emerald);">✅ CORS Proxy (allorigins.win): Working — HTTP ${r.status}</div>`
-      : `<div class="mono text-xs" style="color:var(--gold);">⚠ CORS Proxy: HTTP ${r.status} — Try the default https://api.allorigins.win/raw?url=</div>`);
-  } catch(e) {
-    results.push(`<div class="mono text-xs" style="color:var(--red);">❌ CORS Proxy failed: ${e.message}<br>→ Reset to: https://api.allorigins.win/raw?url=</div>`);
-  }
-
   box.innerHTML = results.join('');
-}
-
-// ============================================================
-//  FIX 1: BULLETPROOF CORS PROXY — allorigins.win
-//  allorigins.win/raw?url= is the most reliable option for
-//  mobile browser local HTML files. No sign-up, no rate limits
-//  that require opt-in, and returns raw response body.
-//
-//  Usage: proxify(proxy, 'https://target.com/endpoint')
-//  → 'https://api.allorigins.win/raw?url=https%3A%2F%2Ftarget...'
-//
-//  OpenRouter is CORS-safe and never uses this proxy.
-// ============================================================
-function proxify(proxyBase, targetUrl) {
-  // allorigins.win/raw?url= expects a fully encoded target URL
-  // corsproxy.io/? also works with this encoding — universal format
-  const base = proxyBase.endsWith('=') || proxyBase.endsWith('?')
-    ? proxyBase
-    : proxyBase + (proxyBase.includes('?') ? '&url=' : '?url=');
-  return base + encodeURIComponent(targetUrl);
 }
 
 // ============================================================
@@ -688,11 +690,9 @@ function factorial(n) {
   if (n <= 1) return 1;
   let r = 1; for (let i = 2; i <= n; i++) r *= i; return r;
 }
-
 function poisson(lambda, k) {
   return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k);
 }
-
 function tauDC(x, y, muH, muA, rho) {
   if (x===0 && y===0) return 1 - muH*muA*rho;
   if (x===0 && y===1) return 1 + muH*rho;
@@ -700,7 +700,6 @@ function tauDC(x, y, muH, muA, rho) {
   if (x===1 && y===1) return 1 - rho;
   return 1;
 }
-
 function calcMatchProbs(muH, muA, rho = -0.1) {
   let pH = 0, pD = 0, pA = 0;
   const maxG = 8;
@@ -715,11 +714,9 @@ function calcMatchProbs(muH, muA, rho = -0.1) {
   const total = pH + pD + pA;
   return { pH: pH/total, pD: pD/total, pA: pA/total };
 }
-
 function calcGGProb(muH, muA) {
   return (1 - poisson(muH, 0)) * (1 - poisson(muA, 0));
 }
-
 function calcO25Prob(muH, muA) {
   let pUnder = 0;
   for (let i = 0; i <= 2; i++) {
@@ -729,11 +726,9 @@ function calcO25Prob(muH, muA) {
   }
   return 1 - pUnder;
 }
-
 function calcGGO25Prob(muH, muA) {
   return calcGGProb(muH, muA) * calcO25Prob(muH, muA) * 1.05;
 }
-
 function impliedProb(odds) { return 1 / odds; }
 function valueEdge(ourProb, marketOdds) {
   return ((ourProb - impliedProb(marketOdds)) / impliedProb(marketOdds)) * 100;
@@ -741,126 +736,95 @@ function valueEdge(ourProb, marketOdds) {
 function fairOdds(prob) { return prob > 0 ? (1 / prob).toFixed(2) : '∞'; }
 
 // ============================================================
-//  API-FOOTBALL HELPERS  v6.2
-//  SOLUTION: corsproxy.io forwards custom headers intact,
-//  so x-apisports-key reaches API-Football correctly.
-//  Fallback chain: corsproxy.io → allorigins (token param) → fail
+//  API-FOOTBALL — DIRECT FETCH (RapidAPI endpoint)
+//  v7.0: No proxy. Sends x-rapidapi-key + x-rapidapi-host headers.
+//  Vercel HTTPS environment handles CORS natively.
 // ============================================================
 async function apfGet(endpoint, params, key) {
-  const base = `https://v3.football.api-sports.io/${endpoint}`;
+  const base = `https://api-football.v3.rapi.net/v3/${endpoint}`;
   const url = new URL(base);
   Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
-  const targetUrl = url.toString();
 
-  // ── Attempt 1: corsproxy.io — forwards x-apisports-key header ──
-  try {
-    const proxied = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
-    const r = await fetch(proxied, {
-      headers: { 'x-apisports-key': key },
-      signal: AbortSignal.timeout(15000)
-    });
-    if (r.ok) {
-      const d = await r.json();
-      if (d.errors && Object.keys(d.errors).length) throw new Error(JSON.stringify(d.errors));
-      return d.response || [];
-    }
-  } catch(e) {
-    console.warn('APF corsproxy attempt failed:', e.message);
-  }
+  const r = await fetch(url.toString(), {
+    headers: {
+      'x-rapidapi-key': key,
+      'x-rapidapi-host': 'api-football.v3.rapi.net'
+    },
+    signal: AbortSignal.timeout(15000)
+  });
 
-  // ── Attempt 2: allorigins /get?url= with ?token= in URL ──
-  try {
-    const urlWithToken = new URL(base);
-    Object.entries(params).forEach(([k,v]) => urlWithToken.searchParams.set(k, v));
-    urlWithToken.searchParams.set('token', key);
-    const proxied2 = `https://api.allorigins.win/get?url=${encodeURIComponent(urlWithToken.toString())}`;
-    const r2 = await fetch(proxied2, { signal: AbortSignal.timeout(15000) });
-    if (r2.ok) {
-      const wrapper = await r2.json();
-      if (wrapper.status?.http_code && wrapper.status.http_code !== 200) {
-        throw new Error(`API-Football HTTP ${wrapper.status.http_code}`);
-      }
-      const d = typeof wrapper.contents === 'string' ? JSON.parse(wrapper.contents) : wrapper;
-      if (d.errors && Object.keys(d.errors).length) throw new Error(JSON.stringify(d.errors));
-      return d.response || [];
-    }
-  } catch(e) {
-    console.warn('APF allorigins attempt failed:', e.message);
-  }
-
-  throw new Error('API-Football unreachable via all proxies');
+  if (!r.ok) throw new Error(`API-Football HTTP ${r.status}`);
+  const d = await r.json();
+  if (d.errors && Object.keys(d.errors).length) throw new Error(JSON.stringify(d.errors));
+  return d.response || [];
 }
 
 async function getFixturesToday(key, season) {
-  const today = new Date().toISOString().split('T')[0];
+  // v7.0: Fetch today AND tomorrow to widen the 24-48h fixture pool
+  const today = new Date();
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  const fmt = d => d.toISOString().split('T')[0];
   try {
-    const fixtures = await apfGet('fixtures', { date: today, season }, key);
-    return fixtures;
+    const [todayFix, tomorrowFix] = await Promise.all([
+      apfGet('fixtures', { date: fmt(today), season }, key),
+      apfGet('fixtures', { date: fmt(tomorrow), season }, key)
+    ]);
+    const combined = [...(todayFix||[]), ...(tomorrowFix||[])];
+    // Deduplicate by fixture id
+    const seen = new Set();
+    return combined.filter(f => {
+      if (seen.has(f.fixture.id)) return false;
+      seen.add(f.fixture.id); return true;
+    });
   } catch(e) {
-    console.warn('Global fixtures fetch error:', e.message);
+    console.warn('Fixtures fetch error:', e.message);
     return [];
   }
 }
 
 async function getTeamStats(key, teamId, leagueId, season) {
-  try {
-    return await apfGet('teams/statistics', { team: teamId, league: leagueId, season }, key);
-  } catch(e) { return null; }
+  try { return await apfGet('teams/statistics', { team: teamId, league: leagueId, season }, key); }
+  catch(e) { return null; }
 }
-
 async function getH2H(key, h, a) {
-  try {
-    return await apfGet('fixtures/headtohead', { h2h: `${h}-${a}`, last: 10 }, key);
-  } catch(e) { return []; }
+  try { return await apfGet('fixtures/headtohead', { h2h: `${h}-${a}`, last: 10 }, key); }
+  catch(e) { return []; }
 }
-
 async function getLineups(key, fixtureId) {
-  try {
-    return await apfGet('fixtures/lineups', { fixture: fixtureId }, key);
-  } catch(e) { return []; }
+  try { return await apfGet('fixtures/lineups', { fixture: fixtureId }, key); }
+  catch(e) { return []; }
 }
-
 async function getInjuries(key, fixtureId) {
-  try {
-    return await apfGet('injuries', { fixture: fixtureId }, key);
-  } catch(e) { return []; }
+  try { return await apfGet('injuries', { fixture: fixtureId }, key); }
+  catch(e) { return []; }
 }
-
 async function getRecentFixtures(key, teamId, last) {
-  try {
-    return await apfGet('fixtures', { team: teamId, last }, key);
-  } catch(e) { return []; }
+  try { return await apfGet('fixtures', { team: teamId, last }, key); }
+  catch(e) { return []; }
 }
 
 // ============================================================
-//  FIX 2 (CONT): THE ODDS API — DYNAMIC GLOBAL LEAGUE SCAN
-//  First fetches ALL active soccer sport keys, then gets odds.
+//  THE ODDS API — DIRECT FETCH
+//  v7.0: No proxy. api.the-odds-api.com supports CORS on HTTPS.
+//  Date filtering: keep only events commencing in next 48 hours.
 // ============================================================
-async function getAllSoccerSportKeys(oddsKey, corsProxy) {
-  // FIX v6.1: Try direct first (Odds API is CORS-safe — no proxy needed),
-  // then fall back to proxied if direct fails.
-  const directUrl = `https://api.the-odds-api.com/v4/sports/?apiKey=${oddsKey}`;
-  let sports = null;
+function filterNext48h(events) {
+  const now = Date.now();
+  const cutoff = now + (48 * 60 * 60 * 1000);
+  return events.filter(ev => {
+    if (!ev.commence_time) return true; // keep if no date field
+    const t = new Date(ev.commence_time).getTime();
+    return t >= now && t <= cutoff;
+  });
+}
 
-  try {
-    const r = await fetch(directUrl, { signal: AbortSignal.timeout(10000) });
-    if (r.ok) sports = await r.json();
-  } catch(e) { /* direct failed — try via proxy */ }
-
-  if (!sports) {
-    try {
-      const proxied = proxify(corsProxy, directUrl);
-      const r = await fetch(proxied, { signal: AbortSignal.timeout(10000) });
-      if (r.ok) sports = await r.json();
-    } catch(e) {
-      console.warn('Sports discovery error:', e.message);
-      return [];
-    }
-  }
-
+async function getAllSoccerSportKeys(oddsKey) {
+  const r = await fetch(`https://api.the-odds-api.com/v4/sports/?apiKey=${oddsKey}`, {
+    signal: AbortSignal.timeout(12000)
+  });
+  if (!r.ok) throw new Error(`Odds API sports HTTP ${r.status}`);
+  const sports = await r.json();
   if (!Array.isArray(sports)) return [];
-
-  // FIX v6.1: Match ANY football/soccer group — API uses different labels by region
   return sports
     .filter(s => s.active && (
       /soccer|football/i.test(s.group || '') ||
@@ -869,101 +833,78 @@ async function getAllSoccerSportKeys(oddsKey, corsProxy) {
     .map(s => s.key);
 }
 
-async function getOddsForSport(oddsKey, sport, corsProxy) {
+async function getOddsForSport(oddsKey, sport) {
   try {
-    // v6.2: No date filter — fetch all upcoming matches and let API return what it has.
-    // Date filtering on free/standard tiers silently returns empty arrays.
-    const target = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${oddsKey}&regions=eu,uk,us&markets=h2h,totals&oddsFormat=decimal`;
-
-    // Odds API is CORS-safe — try direct first, proxy as fallback
-    let r;
-    try {
-      r = await fetch(target, { signal: AbortSignal.timeout(12000) });
-    } catch(e) {
-      const proxied = proxify(corsProxy, target);
-      r = await fetch(proxied, { signal: AbortSignal.timeout(12000) });
-    }
-
-    if (!r || !r.ok) return [];
+    const r = await fetch(
+      `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${oddsKey}&regions=eu,uk,us&markets=h2h,totals&oddsFormat=decimal`,
+      { signal: AbortSignal.timeout(12000) }
+    );
+    if (!r.ok) return [];
     const data = await r.json();
     return Array.isArray(data) ? data : [];
   } catch(e) { return []; }
 }
 
-async function getOddsGlobal(oddsKey, corsProxy, logFn) {
-  logFn('🌍 Discovering all active soccer leagues from The-Odds-API...');
-  const sportKeys = await getAllSoccerSportKeys(oddsKey, corsProxy);
+async function getOddsGlobal(oddsKey, logFn) {
+  logFn('🌍 Discovering active soccer leagues (direct → api.the-odds-api.com)...');
+  const sportKeys = await getAllSoccerSportKeys(oddsKey);
   logFn(`📡 Found ${sportKeys.length} active soccer competitions globally`);
 
   const all = [];
   let leaguesWithData = 0;
 
-  // Batch in groups of 4 to avoid rate limits
-  for (let i = 0; i < sportKeys.length; i += 4) {
-    const batch = sportKeys.slice(i, i + 4);
-
-    // FIX v6: Log each league being scanned for the debug panel
+  for (let i = 0; i < sportKeys.length; i += 5) {
+    const batch = sportKeys.slice(i, i + 5);
     batch.forEach(sp => logFn(`  🔍 Scanning: ${sp}`));
-
-    const batchResults = await Promise.all(
-      batch.map(sp => getOddsForSport(oddsKey, sp, corsProxy))
-    );
-    for (let j = 0; j < batchResults.length; j++) {
-      const data = batchResults[j];
-      if (Array.isArray(data) && data.length > 0) {
-        all.push(...data);
+    const results = await Promise.all(batch.map(sp => getOddsForSport(oddsKey, sp)));
+    for (let j = 0; j < results.length; j++) {
+      if (results[j].length > 0) {
+        all.push(...results[j]);
         leaguesWithData++;
-        logFn(`    ✅ ${batch[j]}: ${data.length} matches`);
+        logFn(`    ✅ ${batch[j]}: ${results[j].length} events`);
       }
-      // FIX v6: If 0 matches — skip silently (no "Global Failure")
     }
+    if (i + 5 < sportKeys.length) await new Promise(r => setTimeout(r, 200)); // brief rate-limit pause
   }
 
-  logFn(`✅ Odds loaded: ${all.length} matches from ${leaguesWithData}/${sportKeys.length} competitions`);
+  // v7.0: Filter to next 24-48h window
+  const filtered = filterNext48h(all);
+  logFn(`✅ Raw events: ${all.length} → After 48h filter: ${filtered.length} (from ${leaguesWithData} leagues)`);
 
-  // FIX v6: If 0 total matches after 50+ leagues, flag it for the UI failsafe
-  if (all.length === 0 && sportKeys.length >= 50) {
-    logFn('⚠ 0 matches found across 50+ leagues — try Backup Region button');
-    window._oracleZeroMatchFlag = true;
-  } else {
-    window._oracleZeroMatchFlag = false;
-  }
-
-  return all;
+  window._oracleZeroMatchFlag = filtered.length === 0 && sportKeys.length >= 10;
+  return filtered;
 }
 
-// FIX v6: Backup region pull (US/UK focused, broader time window)
-async function getOddsBackupRegion(oddsKey, corsProxy, logFn) {
-  logFn('🔄 BACKUP REGION PULL — US/UK odds, extended 48h window...');
-  const sportKeys = await getAllSoccerSportKeys(oddsKey, corsProxy);
+// Extended 48h backup — wider regions, no filter
+async function getOddsBackupRegion(oddsKey, logFn) {
+  logFn('🔄 EXTENDED SCAN — EU + UK + US, 48h window...');
+  const sportKeys = await getAllSoccerSportKeys(oddsKey);
   const all = [];
-  for (let i = 0; i < sportKeys.length; i += 4) {
-    const batch = sportKeys.slice(i, i + 4);
-    const batchResults = await Promise.all(
-      batch.map(async sp => {
-        try {
-          const target = `https://api.the-odds-api.com/v4/sports/${sp}/odds/?apiKey=${oddsKey}&regions=us,uk&markets=h2h,totals&oddsFormat=decimal`;
-          let r;
-          try {
-            r = await fetch(target, { signal: AbortSignal.timeout(12000) });
-          } catch(e) {
-            const proxied = proxify(corsProxy, target);
-            r = await fetch(proxied, { signal: AbortSignal.timeout(12000) });
-          }
-          if (!r || !r.ok) return [];
-          const d = await r.json();
-          return Array.isArray(d) ? d : [];
-        } catch(e) { return []; }
-      })
-    );
-    batchResults.forEach(d => { if (d.length) all.push(...d); });
-    if (i + 4 < sportKeys.length) logFn(`  → Backup: ${Math.min(i+4, sportKeys.length)}/${sportKeys.length} leagues...`);
+  for (let i = 0; i < sportKeys.length; i += 5) {
+    const batch = sportKeys.slice(i, i + 5);
+    const results = await Promise.all(batch.map(async sp => {
+      try {
+        const r = await fetch(
+          `https://api.the-odds-api.com/v4/sports/${sp}/odds/?apiKey=${oddsKey}&regions=eu,uk,us&markets=h2h,totals&oddsFormat=decimal`,
+          { signal: AbortSignal.timeout(12000) }
+        );
+        if (!r.ok) return [];
+        const d = await r.json();
+        return Array.isArray(d) ? d : [];
+      } catch(e) { return []; }
+    }));
+    results.forEach(d => { if (d.length) all.push(...d); });
+    if (i + 5 < sportKeys.length) logFn(`  → ${Math.min(i+5, sportKeys.length)}/${sportKeys.length} leagues...`);
   }
-  logFn(`✅ Backup pull: ${all.length} matches found`);
-  return all;
+  // 48h filter
+  const filtered = filterNext48h(all);
+  logFn(`✅ Extended scan: ${all.length} raw → ${filtered.length} within 48h`);
+  return filtered;
 }
 
-// Match fixtures to odds events by team names (fuzzy)
+// ============================================================
+//  ODDS HELPERS
+// ============================================================
 function matchOddsEvent(fixture, oddsEvents) {
   const homeTeam = fixture.teams.home.name.toLowerCase();
   const awayTeam = fixture.teams.away.name.toLowerCase();
@@ -1040,77 +981,29 @@ function analyzeUpsetSniper(homeStats, awayStats, homeRecent, awayRecent, muH, m
 }
 
 // ============================================================
-//  FIX 3: LINEUP COMPLIANCE — GHOST PREVENTION
-//  Only confirmed starting XI are included in scorer picks.
-//  Any player NOT in startXI is marked as GHOST and excluded.
+//  LINEUP COMPLIANCE — GHOST PREVENTION
 // ============================================================
 function extractGoalscorers(lineups) {
-  if (!lineups || !lineups.length) {
-    return { scorers: [], lineupConfirmed: false };
-  }
-
+  if (!lineups || !lineups.length) return { scorers: [], lineupConfirmed: false };
   const scorers = [];
   for (const team of lineups) {
     const starters = (team.startXI || []).map(p => p.player);
-    // Build a lookup set of confirmed starter IDs & names
-    const starterSet = new Set(starters.map(p => p.name.toLowerCase()));
-
     for (const player of starters) {
       if (player.pos === 'F' || player.pos === 'M') {
-        scorers.push({
-          name: player.name,
-          team: team.team.name,
-          position: player.pos,
-          number: player.number,
-          isStarting: true,          // ✅ Confirmed in startXI
-          isGhost: false             // Not a ghost — real confirmed starter
-        });
+        scorers.push({ name: player.name, team: team.team.name, position: player.pos, number: player.number, isStarting: true, isGhost: false });
       }
     }
   }
-
-  return {
-    scorers: scorers.slice(0, 10),
-    lineupConfirmed: lineups.length > 0 && lineups.some(t => (t.startXI||[]).length > 0)
-  };
+  return { scorers: scorers.slice(0, 10), lineupConfirmed: lineups.length > 0 && lineups.some(t => (t.startXI||[]).length > 0) };
 }
 
-// Cross-check a player name against confirmed lineup
-function verifyPlayerInLineup(playerName, lineups) {
-  if (!lineups || !lineups.length) return false;
-  for (const team of lineups) {
-    const starters = (team.startXI || []).map(p => p.player.name.toLowerCase());
-    if (starters.some(s => s.includes(playerName.toLowerCase()) || playerName.toLowerCase().includes(s.split(' ').pop()))) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// ============================================================
-//  LINEUP OFFLINE BANNER
-//  Shows/hides a persistent warning when API-Football is down
-//  and the scan is running on Odds-API data only.
-// ============================================================
 function showLineupOfflineBanner(show) {
   let banner = document.getElementById('lineupOfflineBanner');
   if (!banner) {
     banner = document.createElement('div');
     banner.id = 'lineupOfflineBanner';
-    banner.style.cssText = `
-      background:rgba(255,59,92,0.08);
-      border:1px solid rgba(255,59,92,0.3);
-      border-radius:6px; padding:10px 12px; margin-bottom:12px;
-      font-family:'JetBrains Mono',monospace; font-size:0.65rem;
-      color:#FF3B5C; line-height:1.6; display:none;
-    `;
-    banner.innerHTML = `
-      ⚠ <strong>LINEUP VERIFICATION OFFLINE</strong><br>
-      API-Football is unreachable via proxy. Value bets are calculated<br>
-      from Odds-API data only. Lineup &amp; injury data unavailable.<br>
-      <span style="color:#7A90A8;">Ghost prevention and upset verification are paused this scan.</span>
-    `;
-    // Insert before the stats row
+    banner.style.cssText = `background:rgba(255,59,92,0.08);border:1px solid rgba(255,59,92,0.3);border-radius:6px;padding:10px 12px;margin-bottom:12px;font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:#FF3B5C;line-height:1.6;display:none;`;
+    banner.innerHTML = `⚠ <strong>LINEUP VERIFICATION OFFLINE</strong><br>API-Football unreachable. Value bets calculated from Odds-API only.<br><span style="color:#7A90A8;">Ghost prevention and upset verification paused this scan.</span>`;
     const statsRow = document.querySelector('.grid.grid-cols-3');
     if (statsRow) statsRow.parentNode.insertBefore(banner, statsRow);
   }
@@ -1126,77 +1019,73 @@ function setProgress(pct, label) {
   document.getElementById('progressBar').style.width = pct + '%';
   document.getElementById('progressLabel').textContent = label;
 }
-
 function addScanLog(msg) {
   const log = document.getElementById('scanLog');
   log.classList.add('active');
   const line = document.createElement('div');
-  line.className = 'log-line';
-  line.textContent = msg;
-  log.appendChild(line);
-  log.scrollTop = log.scrollHeight;
+  line.className = 'log-line'; line.textContent = msg;
+  log.appendChild(line); log.scrollTop = log.scrollHeight;
 }
-
 function clearScanLog() {
   const log = document.getElementById('scanLog');
-  log.innerHTML = '';
-  log.classList.remove('active');
+  log.innerHTML = ''; log.classList.remove('active');
 }
 
 async function runScan() {
   if (scanRunning) return;
   const s = getSettings();
+  if (!s.oddsKey) { showToast('⚠ Set your Odds API key in Settings', 'red'); openSettings(); return; }
 
-  // FIX v6.1: Only Odds API key is required to start a scan.
-  // API-Football is optional — its failure is gracefully handled.
-  if (!s.oddsKey) {
-    showToast('⚠ Set your Odds API key in Settings to scan', 'red');
-    openSettings();
-    return;
-  }
-
-  scanRunning = true;
-  clearScanLog();
+  scanRunning = true; clearScanLog();
   const btn = document.getElementById('scanBtn');
   btn.disabled = true;
   document.getElementById('scanBtnText').textContent = '⏳ GLOBAL SCAN IN PROGRESS...';
 
   try {
-    // ── STEP 1: Fetch today's fixtures (API-Football) ──
-    // GRACEFUL DEGRADATION: If API-Football fails for any reason
-    // (header stripping, bad key, quota exceeded), we fall back to
-    // building synthetic fixture stubs from The-Odds-API match names.
-    // The scan continues — only lineup/injury data will be missing.
-    setProgress(5, '🌍 Fetching today\'s fixtures...');
-    addScanLog('📡 Connecting to API-Football (key-in-URL mode)...');
+    // ── STEP 1: Fixtures from API-Football (today + tomorrow) ──
+    setProgress(5, '🌍 Fetching 24-48h fixtures (direct API-Football)...');
+    addScanLog('📡 Connecting to api-football.v3.rapi.net (x-rapidapi-key)...');
 
     let fixtures = [];
     let apfOnline = false;
 
-    try {
-      fixtures = await getFixturesToday(s.footballKey, s.season);
-      if (fixtures.length > 0) {
-        apfOnline = true;
-        addScanLog(`✅ API-Football online — ${fixtures.length} fixtures across ${new Set(fixtures.map(f=>f.league.id)).size} leagues`);
-      } else {
-        addScanLog('⚠ API-Football returned 0 fixtures — switching to Odds-API fixture mode');
+    if (s.footballKey) {
+      try {
+        fixtures = await getFixturesToday(s.footballKey, s.season);
+        if (fixtures.length > 0) {
+          apfOnline = true;
+          setHeaderDot('hdrFootballDot', 'green');
+          addScanLog(`✅ API-Football online — ${fixtures.length} fixtures (today + tomorrow, ${new Set(fixtures.map(f=>f.league.id)).size} leagues)`);
+        } else {
+          setHeaderDot('hdrFootballDot', 'red');
+          addScanLog('⚠ API-Football: 0 fixtures — switching to Odds-API fixture mode');
+        }
+      } catch(e) {
+        setHeaderDot('hdrFootballDot', 'red');
+        addScanLog(`⚠ API-Football failed (${e.message}) — Odds-API fixture mode`);
       }
-    } catch(e) {
-      addScanLog(`⚠ API-Football failed (${e.message}) — switching to Odds-API fixture mode`);
+    } else {
+      addScanLog('ℹ API-Football key not set — Odds-API only mode');
     }
 
-    // ── STEP 2: Discover all soccer odds globally (always runs, Odds API is primary) ──
-    setProgress(12, '📡 Discovering active soccer competitions globally...');
-    const oddsEvents = await getOddsGlobal(s.oddsKey, s.corsProxy, addScanLog);
+    // ── STEP 2: Odds API global scan (direct, 48h filtered) ──
+    setProgress(12, '📡 Scanning all soccer competitions (direct → api.the-odds-api.com)...');
+    let oddsEvents;
+    try {
+      oddsEvents = await getOddsGlobal(s.oddsKey, addScanLog);
+      setHeaderDot('hdrOddsDot', 'green');
+    } catch(e) {
+      setHeaderDot('hdrOddsDot', 'red');
+      addScanLog(`❌ Odds API error: ${e.message}`);
+      oddsEvents = [];
+    }
 
-    // FALLBACK: Build fixture stubs from Odds-API data if API-Football is offline
+    // Build stubs if API-Football offline
     if (!apfOnline) {
-      // FIX v6.1: Odds API alone is sufficient — never block scan on API-Football failure
       if (!oddsEvents.length) {
-        // Only truly fail if Odds API also returned nothing
-        addScanLog('⚠ Odds API also returned 0 matches — check your key or try Backup Region');
-        showToast('⚠ 0 matches found. Try the Backup Region button.', 'gold');
-        setProgress(0, '⚠ 0 matches found — try Backup Region');
+        addScanLog('⚠ Odds API also returned 0 matches in 48h window');
+        showToast('⚠ 0 matches found. Try Extended 48h Scan.', 'gold');
+        setProgress(0, '⚠ 0 matches — try Extended 48h Scan');
         document.getElementById('backupRegionWrap').style.display = 'block';
         return;
       }
@@ -1207,55 +1096,42 @@ async function runScan() {
         teams: { home: { id: null, name: ev.home_team }, away: { id: null, name: ev.away_team } },
         _fromOddsApi: true
       }));
-      addScanLog(`✅ ${fixtures.length} Odds-API fixture stubs ready — lineup data unavailable`);
+      addScanLog(`✅ ${fixtures.length} stubs ready`);
       showLineupOfflineBanner(true);
     } else {
       showLineupOfflineBanner(false);
     }
 
-    if (!fixtures.length) {
-      showToast('⚠ No fixtures found today.', 'gold');
-      setProgress(0, 'No fixtures found for today.');
-      return;
-    }
+    if (!fixtures.length) { showToast('⚠ No fixtures found.', 'gold'); setProgress(0, 'No fixtures found.'); return; }
 
     setProgress(28, `📊 Analyzing top ${Math.min(fixtures.length, s.maxFixtures)} fixtures...`);
-    addScanLog(`🔬 Beginning statistical analysis (cap: ${s.maxFixtures} fixtures)...`);
+    addScanLog(`🔬 Statistical analysis (cap: ${s.maxFixtures})...`);
 
     const analyzed = [];
     const total = Math.min(fixtures.length, s.maxFixtures);
 
     for (let i = 0; i < total; i++) {
       const fx = fixtures[i];
-      const pct = 28 + Math.floor((i / total) * 42);
-      setProgress(pct, `🔬 Analyzing ${fx.teams.home.name} vs ${fx.teams.away.name}...`);
+      setProgress(28 + Math.floor((i/total)*42), `🔬 ${fx.teams.home.name} vs ${fx.teams.away.name}`);
 
       try {
-        const lid = fx.league.id;
         const isStub = fx._fromOddsApi === true;
-
-        // For Odds-API stubs: skip all API-Football calls (no team IDs)
-        // For real fixtures: fetch full data in parallel
         let homeStats=null, awayStats=null, h2h=[], homeRecent=[], awayRecent=[], lineups=[], injuries=[];
 
         if (!isStub && s.footballKey && apfOnline) {
           try {
             [homeStats, awayStats, h2h, homeRecent, awayRecent, lineups, injuries] = await Promise.all([
-              getTeamStats(s.footballKey, fx.teams.home.id, lid, s.season),
-              getTeamStats(s.footballKey, fx.teams.away.id, lid, s.season),
+              getTeamStats(s.footballKey, fx.teams.home.id, fx.league.id, s.season),
+              getTeamStats(s.footballKey, fx.teams.away.id, fx.league.id, s.season),
               getH2H(s.footballKey, fx.teams.home.id, fx.teams.away.id),
               getRecentFixtures(s.footballKey, fx.teams.home.id, 6),
               getRecentFixtures(s.footballKey, fx.teams.away.id, 6),
               getLineups(s.footballKey, fx.fixture.id),
               getInjuries(s.footballKey, fx.fixture.id)
             ]);
-          } catch(statErr) {
-            // Individual stat fetch failed — proceed with defaults (all already null/[])
-            console.warn(`Stats fetch failed for fixture ${fx.fixture.id}:`, statErr.message);
-          }
+          } catch(se) { console.warn(`Stats fetch failed for ${fx.fixture.id}:`, se.message); }
         }
 
-        // xG proxies
         const muH = homeStats?.goals?.for?.average?.total ? parseFloat(homeStats.goals.for.average.total) : 1.3;
         const muA = awayStats?.goals?.for?.average?.total ? parseFloat(awayStats.goals.for.average.total) * 0.85 : 1.0;
 
@@ -1267,14 +1143,9 @@ async function runScan() {
         const drawAnalysis = analyzeDrawHunter(h2h, muH, muA);
         const ggAnalysis = analyzeGGO25(homeStats, awayStats);
         const upsetAnalysis = analyzeUpsetSniper(homeStats, awayStats, homeRecent, awayRecent, muH, muA);
-
-        // FIX 3: Lineup compliance — no ghost predictions
         const { scorers: goalscorers, lineupConfirmed } = extractGoalscorers(lineups);
-
-        // Summarize injury list for AI
         const injuryList = injuries.map(inj => `${inj.player?.name} (${inj.team?.name}): ${inj.injury?.type}`).slice(0, 6);
 
-        // Odds matching
         const oddsEvent = matchOddsEvent(fx, oddsEvents);
         const odds = extractOddsFromEvent(oddsEvent);
 
@@ -1284,110 +1155,78 @@ async function runScan() {
         const awayEdge = odds.awayWin ? valueEdge(probs.pA, odds.awayWin) : null;
         const homeEdge = odds.homeWin ? valueEdge(probs.pH, odds.homeWin) : null;
 
-        const baseConf = Math.max(probs.pH, probs.pD, probs.pA) * 100;
-
         analyzed.push({
-          fixture: fx,
-          muH, muA, probs,
-          probGGO25, probGG, probO25,
-          drawAnalysis, ggAnalysis, upsetAnalysis,
-          goalscorers,
-          lineupConfirmed,
-          injuryList,
-          lineups,  // stored for AI context
+          fixture: fx, muH, muA, probs, probGGO25, probGG, probO25,
+          drawAnalysis, ggAnalysis, upsetAnalysis, goalscorers, lineupConfirmed, injuryList, lineups,
           odds, ggO25Odds, oddsEvent: !!oddsEvent,
           drawEdge, ggO25Edge, awayEdge, homeEdge,
-          confidence: Math.round(baseConf),
-          patterns: {
-            draw: drawAnalysis.isDrawHunter,
-            gg: ggAnalysis.isGGO25 || probGGO25 > 0.55,
-            upset: upsetAnalysis.isUpset
-          }
+          confidence: Math.round(Math.max(probs.pH, probs.pD, probs.pA) * 100),
+          patterns: { draw: drawAnalysis.isDrawHunter, gg: ggAnalysis.isGGO25 || probGGO25 > 0.55, upset: upsetAnalysis.isUpset }
         });
-
-      } catch(e) {
-        console.warn(`Fixture ${fx.fixture.id} error:`, e.message);
-      }
+      } catch(e) { console.warn(`Fixture error:`, e.message); }
     }
 
     addScanLog(`📊 Analysis complete: ${analyzed.length} matches processed`);
 
-    // ── STEP 3: AI Compliance — ONLY for 20%+ value-gap matches ──
-    // FIX 2: TOKEN EFFICIENCY
-    // Pre-filter with JavaScript before touching OpenRouter.
-    // A match qualifies for AI review ONLY if at least one market
-    // shows a value edge ≥ VALUE_GAP_THRESHOLD (default 20%).
-    // Everything below that threshold is handled locally — 0 tokens.
-
+    // ── STEP 3: AI Compliance (20%+ edge matches only) ──
     const highValueMatches = analyzed.filter(m => {
       const edges = [m.drawEdge, m.ggO25Edge, m.awayEdge, m.homeEdge].filter(e => e !== null);
       return edges.some(e => e >= VALUE_GAP_THRESHOLD);
     });
-
-    addScanLog(`🔍 Value-gap filter (20%+): ${highValueMatches.length} of ${analyzed.length} matches qualify for AI review`);
-
-    setProgress(72, `🤖 AI verifying ${highValueMatches.length} high-value picks (20%+ edge only)...`);
+    addScanLog(`🔍 Value-gap filter (20%+): ${highValueMatches.length}/${analyzed.length} qualify for AI`);
+    setProgress(72, `🤖 Accu Sniper: building 100+ odds accumulator (${highValueMatches.length} picks)...`);
 
     let aiInsights = {};
     if (s.openRouterKey && highValueMatches.length > 0) {
       try {
-        // Sort by highest edge first, cap at 15 to keep prompt lean
         const forAI = highValueMatches
-          .sort((a, b) => {
+          .sort((a,b) => {
             const bestA = Math.max(...[a.drawEdge, a.ggO25Edge, a.awayEdge, a.homeEdge].filter(e => e !== null));
             const bestB = Math.max(...[b.drawEdge, b.ggO25Edge, b.awayEdge, b.homeEdge].filter(e => e !== null));
             return bestB - bestA;
-          })
-          .slice(0, 15);
-
-        addScanLog(`🤖 Sending ${forAI.length} picks to AI (trimmed from ${analyzed.length} total)...`);
+          }).slice(0, 18);
+        addScanLog(`🤖 Sending ${forAI.length} picks to Accu Sniper AI...`);
         aiInsights = await runAICompliance(s.openRouterKey, forAI);
+        setHeaderDot('hdrAiDot', 'green');
         const rejected = Object.values(aiInsights).filter(v => v && v.compliance_flag).length;
-        addScanLog(`✅ AI review complete — ${rejected} picks flagged/rejected`);
+        addScanLog(`✅ AI done — ${rejected} flagged · accumulator built`);
       } catch(e) {
-        console.warn('AI compliance error:', e.message);
-        addScanLog(`⚠ AI review error: ${e.message}`);
+        setHeaderDot('hdrAiDot', 'red');
+        console.warn('AI error:', e.message);
+        addScanLog(`⚠ AI error: ${e.message}`);
       }
     } else if (!s.openRouterKey) {
-      addScanLog('⚠ OpenRouter key not set — AI verification skipped');
+      addScanLog('⚠ OpenRouter key not set — AI skipped');
     } else {
-      addScanLog(`ℹ No matches cleared the 20% value-gap threshold — AI call skipped (0 tokens used)`);
+      addScanLog('ℹ No 20%+ edge picks — AI skipped (0 tokens used)');
     }
 
-    setProgress(85, '📋 Building Daily 100 accumulator...');
+    setProgress(85, '📋 Building 100+ Accumulator (Strict Patterns)...');
     const daily100 = buildDaily100(analyzed, s.minEdge, aiInsights);
 
     setProgress(92, '🏆 Ranking global value bets...');
     const top20 = buildTop20(analyzed, s.minEdge, aiInsights);
 
-    setProgress(97, '💾 Saving results...');
+    setProgress(97, '💾 Saving...');
     const results = { daily100, top20, analyzed, timestamp: Date.now(), aiInsights };
     localStorage.setItem(STORAGE_KEYS.LAST_RESULTS, JSON.stringify(results));
     localStorage.setItem(STORAGE_KEYS.LAST_SCAN_DATE, new Date().toLocaleDateString());
 
     renderAll(results);
     updateStats(daily100, top20, analyzed);
-    setProgress(100, `✅ Global scan complete — ${analyzed.length} matches, ${top20.length} value bets found`);
+    setProgress(100, `✅ Done — ${analyzed.length} matches · ${top20.length} value bets · ${daily100.legs?.length||0} accu legs`);
 
-    const today = new Date().toLocaleTimeString();
-    document.getElementById('lastScan').textContent = `LAST SCAN: TODAY ${today}`;
+    document.getElementById('lastScan').textContent = `LAST SCAN: TODAY ${new Date().toLocaleTimeString()}`;
     document.getElementById('scanStats').style.display = 'block';
     document.getElementById('matchesFound').textContent = `${analyzed.length} MATCHES`;
     document.getElementById('valueFound').textContent = `${top20.length} VALUE BETS`;
 
-    logToLedger(daily100, top20);
-    renderLedger();
+    logToLedger(daily100, top20); renderLedger();
+    addScanLog(`🎯 Accumulator: ${daily100.legs?.length||0} legs @ ${daily100.combinedOdds?.toFixed(0)}x odds`);
+    showToast(`✅ Scan done! ${daily100.legs?.length||0} legs @ ${daily100.combinedOdds?.toFixed(0)}x`, 'emerald');
 
-    addScanLog(`🎯 Done! ${daily100.legs?.length||0} legs in accumulator · ${top20.length} value bets`);
-    showToast(`✅ Global scan complete! ${daily100.legs?.length||0} legs found`, 'emerald');
-
-    // FIX v6: Show backup region button if 0 matches found after 50+ leagues
-    const backupWrap = document.getElementById('backupRegionWrap');
-    if (window._oracleZeroMatchFlag && oddsEvents.length === 0) {
-      if (backupWrap) backupWrap.style.display = 'block';
-    } else {
-      if (backupWrap) backupWrap.style.display = 'none';
-    }
+    document.getElementById('backupRegionWrap').style.display =
+      (window._oracleZeroMatchFlag && oddsEvents.length === 0) ? 'block' : 'none';
 
   } catch(e) {
     console.error('Scan error:', e);
@@ -1395,55 +1234,50 @@ async function runScan() {
     setProgress(0, `Error: ${e.message}`);
     addScanLog(`❌ Fatal error: ${e.message}`);
   } finally {
-    scanRunning = false;
-    btn.disabled = false;
+    scanRunning = false; btn.disabled = false;
     document.getElementById('scanBtnText').textContent = '⚡ GLOBAL SCAN — ALL LEAGUES';
   }
 }
 
 // ============================================================
-//  FIX v6: BACKUP REGION SCAN — triggered by 0-match failsafe button
+//  BACKUP REGION SCAN
 // ============================================================
 async function runBackupRegionScan() {
   if (scanRunning) return;
   const s = getSettings();
   if (!s.oddsKey) { showToast('⚠ Set your Odds API key first', 'red'); return; }
 
-  scanRunning = true;
-  clearScanLog();
+  scanRunning = true; clearScanLog();
   const btn = document.querySelector('#backupRegionWrap button');
   if (btn) btn.disabled = true;
   document.getElementById('backupRegionWrap').style.display = 'none';
 
   try {
-    setProgress(10, '🔄 Backup region scan — US/UK, 48h window...');
-    addScanLog('🔄 Starting Backup Region pull (US + UK, 48h window)...');
-
-    const oddsEvents = await getOddsBackupRegion(s.oddsKey, s.corsProxy, addScanLog);
+    setProgress(10, '🔄 Extended 48h scan — EU/UK/US...');
+    addScanLog('🔄 Starting Extended 48h pull (EU + UK + US)...');
+    const oddsEvents = await getOddsBackupRegion(s.oddsKey, addScanLog);
 
     if (!oddsEvents.length) {
-      showToast('⚠ Backup pull also returned 0 matches. Odds API may have no upcoming fixtures.', 'red');
-      setProgress(0, '⚠ Backup region: 0 matches');
+      showToast('⚠ Extended scan also returned 0 matches.', 'red');
+      setProgress(0, '⚠ 0 matches even in extended window');
       return;
     }
 
-    addScanLog(`✅ Backup: ${oddsEvents.length} matches found — building fixture stubs...`);
+    addScanLog(`✅ Extended: ${oddsEvents.length} matches — building stubs...`);
     const fixtures = oddsEvents.map(ev => ({
       fixture: { id: ev.id || Math.random(), date: ev.commence_time || new Date().toISOString() },
       league: { id: ev.sport_key, name: ev.sport_title || ev.sport_key },
       teams: { home: { id: null, name: ev.home_team }, away: { id: null, name: ev.away_team } },
       _fromOddsApi: true
     }));
-
     showLineupOfflineBanner(true);
-    setProgress(40, `📊 Analyzing ${Math.min(fixtures.length, s.maxFixtures)} backup fixtures...`);
+    setProgress(40, `📊 Analyzing ${Math.min(fixtures.length, s.maxFixtures)} fixtures...`);
 
     const analyzed = [];
     const total = Math.min(fixtures.length, s.maxFixtures);
     for (let i = 0; i < total; i++) {
       const fx = fixtures[i];
-      const pct = 40 + Math.floor((i / total) * 40);
-      setProgress(pct, `🔬 Analyzing ${fx.teams.home.name} vs ${fx.teams.away.name}...`);
+      setProgress(40 + Math.floor((i/total)*40), `🔬 ${fx.teams.home.name} vs ${fx.teams.away.name}`);
       try {
         const oddsEvent = matchOddsEvent(fx, oddsEvents);
         const odds = extractOddsFromEvent(oddsEvent);
@@ -1472,24 +1306,22 @@ async function runBackupRegionScan() {
       } catch(e) { console.warn('Backup fixture error:', e.message); }
     }
 
-    setProgress(85, '📋 Building accumulator from backup data...');
+    setProgress(85, '📋 Building 100+ accumulator...');
     const daily100 = buildDaily100(analyzed, s.minEdge, {});
     const top20 = buildTop20(analyzed, s.minEdge, {});
-    setProgress(97, '💾 Saving backup results...');
     const results = { daily100, top20, analyzed, timestamp: Date.now(), aiInsights: {} };
     localStorage.setItem(STORAGE_KEYS.LAST_RESULTS, JSON.stringify(results));
-    localStorage.setItem(STORAGE_KEYS.LAST_SCAN_DATE, new Date().toLocaleDateString() + ' (backup)');
-    renderAll(results);
-    updateStats(daily100, top20, analyzed);
-    setProgress(100, `✅ Backup scan complete — ${analyzed.length} matches, ${top20.length} value bets`);
-    document.getElementById('lastScan').textContent = `LAST SCAN: BACKUP REGION`;
+    localStorage.setItem(STORAGE_KEYS.LAST_SCAN_DATE, new Date().toLocaleDateString() + ' (extended)');
+    renderAll(results); updateStats(daily100, top20, analyzed);
+    setProgress(100, `✅ Extended scan done — ${analyzed.length} matches`);
+    document.getElementById('lastScan').textContent = `LAST SCAN: EXTENDED 48H`;
     document.getElementById('scanStats').style.display = 'block';
     document.getElementById('matchesFound').textContent = `${analyzed.length} MATCHES`;
     document.getElementById('valueFound').textContent = `${top20.length} VALUE BETS`;
-    showToast(`✅ Backup scan: ${daily100.legs?.length||0} legs found`, 'emerald');
+    showToast(`✅ Extended: ${daily100.legs?.length||0} legs @ ${daily100.combinedOdds?.toFixed(0)}x`, 'emerald');
   } catch(e) {
-    showToast(`❌ Backup scan failed: ${e.message}`, 'red');
-    setProgress(0, `Backup error: ${e.message}`);
+    showToast(`❌ Extended scan failed: ${e.message}`, 'red');
+    setProgress(0, `Error: ${e.message}`);
   } finally {
     scanRunning = false;
     if (btn) btn.disabled = false;
@@ -1497,75 +1329,108 @@ async function runBackupRegionScan() {
 }
 
 // ============================================================
-//  BUILD DAILY 100 ACCUMULATOR
-//  AI-rejected upsets are excluded from the accumulator.
+//  BUILD DAILY 100 ACCUMULATOR — STRICT PATTERNS → 100+ ODDS
+//  v7.0: Accu Sniper targets ≥100x by:
+//    1) Using ONLY Strict Pattern picks (Draw Hunter, GG+O2.5, Upset Value)
+//    2) Preferring higher-odds legs within each pattern tier
+//    3) Targeting 10-15 legs to push combined odds above 100
+//    4) AI-rejected upsets are excluded
 // ============================================================
 function buildDaily100(analyzed, minEdge, aiInsights) {
-  const candidates = [];
+  // ── Tier 1: Draw Hunter (high-probability draws, avg ~3.3x) ──
+  const drawCandidates = [];
+  // ── Tier 2: GG + Over 2.5 (goal-fest combos, avg ~3.5x) ──
+  const ggCandidates = [];
+  // ── Tier 3: Upset Value (away win vs fatigued home, avg ~4-6x) ──
+  const upsetCandidates = [];
 
   for (const m of analyzed) {
     const matchId = m.fixture.fixture.id;
     const ai = aiInsights[matchId] || {};
-    // Skip any match the AI flagged for compliance
     if (ai.compliance_flag) continue;
 
-    // Draw pick
-    if (m.patterns.draw && m.drawEdge !== null && m.drawEdge >= minEdge) {
-      candidates.push({
+    if (m.patterns.draw && m.drawEdge !== null && m.drawEdge >= minEdge && m.odds.draw) {
+      drawCandidates.push({
         match: `${m.fixture.teams.home.name} vs ${m.fixture.teams.away.name}`,
         league: m.fixture.league.name,
-        market: 'Draw',
-        odds: m.odds.draw || parseFloat(fairOdds(m.probs.pD)),
-        prob: m.probs.pD,
-        edge: m.drawEdge,
-        pattern: 'draw',
+        market: 'Draw', odds: m.odds.draw,
+        prob: m.probs.pD, edge: m.drawEdge, pattern: 'draw',
         reason: `H2H draw rate ${(m.drawAnalysis.h2hDrawRate*100).toFixed(0)}%, xG diff ${m.drawAnalysis.xgDiff.toFixed(2)}`
       });
     }
 
-    // GG+O2.5
-    if (m.patterns.gg && m.ggO25Edge !== null && m.ggO25Edge >= minEdge) {
-      candidates.push({
+    if (m.patterns.gg && m.ggO25Edge !== null && m.ggO25Edge >= minEdge && m.ggO25Odds) {
+      ggCandidates.push({
         match: `${m.fixture.teams.home.name} vs ${m.fixture.teams.away.name}`,
         league: m.fixture.league.name,
-        market: 'GG + O2.5',
-        odds: m.ggO25Odds || parseFloat(fairOdds(m.probGGO25)),
-        prob: m.probGGO25,
-        edge: m.ggO25Edge,
-        pattern: 'gg',
+        market: 'GG + O2.5', odds: m.ggO25Odds,
+        prob: m.probGGO25, edge: m.ggO25Edge, pattern: 'gg',
         reason: `Combined avg goals ${m.ggAnalysis.combinedAvg.toFixed(2)}, GG prob ${(m.probGGO25*100).toFixed(0)}%`
       });
     }
 
-    // Upset — FIX 4: skip if AI rejected the upset logic
     const upsetAiRejected = ai.upset_rejected === true;
-    if (m.patterns.upset && m.awayEdge !== null && m.awayEdge >= minEdge && !upsetAiRejected) {
-      candidates.push({
+    if (m.patterns.upset && m.awayEdge !== null && m.awayEdge >= minEdge && m.odds.awayWin && !upsetAiRejected) {
+      upsetCandidates.push({
         match: `${m.fixture.teams.home.name} vs ${m.fixture.teams.away.name}`,
         league: m.fixture.league.name,
         market: `${m.fixture.teams.away.name} Win`,
-        odds: m.odds.awayWin || parseFloat(fairOdds(m.probs.pA)),
-        prob: m.probs.pA,
-        edge: m.awayEdge,
-        pattern: 'upset',
-        reason: `Home fatigued (${m.upsetAnalysis.homeFatigue.gamesIn12Days} games/12d), away win rate ${(m.upsetAnalysis.awayWinRate*100).toFixed(0)}%`
+        odds: m.odds.awayWin, prob: m.probs.pA, edge: m.awayEdge, pattern: 'upset',
+        reason: `Home fatigue: ${m.upsetAnalysis.homeFatigue.gamesIn12Days} games/12d, away win rate ${(m.upsetAnalysis.awayWinRate*100).toFixed(0)}%`
       });
     }
   }
 
-  candidates.sort((a,b) => b.edge - a.edge || b.odds - a.odds);
+  // Sort each tier: best edge first (for pattern confidence), then by odds descending (for odds accumulation)
+  drawCandidates.sort((a,b) => b.edge - a.edge);
+  ggCandidates.sort((a,b) => b.edge - a.edge);
+  upsetCandidates.sort((a,b) => b.odds - a.odds); // upset: sort by odds for maximum accumulation
 
+  // ── Strict Pattern Mix: 40% draws, 40% GG+O2.5, 20% upsets ──
+  // Try to hit 100x by iteratively adding legs until target is reached
   const legs = [];
+  const usedMatches = new Set();
   let combinedOdds = 1;
+  const TARGET_ODDS = 100;
+  const MAX_LEGS = 15;
 
-  // FIX v6: Generate the best possible slip even with as few as 3 matches.
-  // No longer wait for a "perfect" 20 matches before building the accumulator.
-  // Cap at 8 legs, but generate from whatever is available (min 1).
-  for (const c of candidates) {
-    if (legs.length >= 8) break;
-    if (legs.find(l => l.match === c.match)) continue;
-    legs.push(c);
-    combinedOdds *= c.odds;
+  // Interleave tiers for balance
+  const allTiers = [drawCandidates, ggCandidates, upsetCandidates];
+  let tierIdx = 0;
+  const tierPointers = [0, 0, 0];
+
+  while (legs.length < MAX_LEGS && combinedOdds < TARGET_ODDS) {
+    let added = false;
+    // Try each tier round-robin
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const t = (tierIdx + attempt) % 3;
+      const pool = allTiers[t];
+      while (tierPointers[t] < pool.length) {
+        const c = pool[tierPointers[t]++];
+        if (!usedMatches.has(c.match)) {
+          usedMatches.add(c.match);
+          legs.push(c);
+          combinedOdds *= c.odds;
+          added = true;
+          break;
+        }
+      }
+      if (added) { tierIdx = (t + 1) % 3; break; }
+    }
+    if (!added) break; // all pools exhausted
+  }
+
+  // If still below 100x, backfill with any remaining high-odds candidates
+  if (combinedOdds < TARGET_ODDS) {
+    const remaining = [...drawCandidates, ...ggCandidates, ...upsetCandidates]
+      .filter(c => !usedMatches.has(c.match))
+      .sort((a,b) => b.odds - a.odds);
+    for (const c of remaining) {
+      if (legs.length >= MAX_LEGS || combinedOdds >= TARGET_ODDS) break;
+      usedMatches.add(c.match);
+      legs.push(c);
+      combinedOdds *= c.odds;
+    }
   }
 
   return { legs, combinedOdds };
@@ -1576,7 +1441,6 @@ function buildDaily100(analyzed, minEdge, aiInsights) {
 // ============================================================
 function buildTop20(analyzed, minEdge, aiInsights) {
   const all = [];
-
   for (const m of analyzed) {
     const fx = m.fixture;
     const matchId = fx.fixture.id;
@@ -1584,97 +1448,45 @@ function buildTop20(analyzed, minEdge, aiInsights) {
     const isAiRejected = !!ai.compliance_flag;
 
     if (m.odds.draw && m.drawEdge !== null && m.drawEdge >= minEdge) {
-      all.push({
-        match: `${fx.teams.home.name} vs ${fx.teams.away.name}`,
-        league: fx.league.name, matchId,
-        market: 'Draw',
-        ourProb: m.probs.pD,
-        bookOdds: m.odds.draw,
-        fairOddsVal: parseFloat(fairOdds(m.probs.pD)),
-        edge: m.drawEdge,
-        pattern: 'draw',
-        confidence: m.confidence,
-        lineupConfirmed: m.lineupConfirmed,
-        aiNote: ai.draw || null,
-        aiRejected: isAiRejected,
-        aiFlag: ai.compliance_flag || null
-      });
+      all.push({ match: `${fx.teams.home.name} vs ${fx.teams.away.name}`, league: fx.league.name, matchId,
+        market: 'Draw', ourProb: m.probs.pD, bookOdds: m.odds.draw,
+        fairOddsVal: parseFloat(fairOdds(m.probs.pD)), edge: m.drawEdge, pattern: 'draw',
+        confidence: m.confidence, lineupConfirmed: m.lineupConfirmed,
+        aiNote: ai.draw || null, aiRejected: isAiRejected, aiFlag: ai.compliance_flag || null });
     }
-
     if (m.ggO25Odds && m.ggO25Edge !== null && m.ggO25Edge >= minEdge) {
-      all.push({
-        match: `${fx.teams.home.name} vs ${fx.teams.away.name}`,
-        league: fx.league.name, matchId,
-        market: 'GG + Over 2.5',
-        ourProb: m.probGGO25,
-        bookOdds: m.ggO25Odds,
-        fairOddsVal: parseFloat(fairOdds(m.probGGO25)),
-        edge: m.ggO25Edge,
-        pattern: 'gg',
-        confidence: m.confidence,
-        lineupConfirmed: m.lineupConfirmed,
-        aiNote: ai.gg || null,
-        aiRejected: isAiRejected,
-        aiFlag: ai.compliance_flag || null
-      });
+      all.push({ match: `${fx.teams.home.name} vs ${fx.teams.away.name}`, league: fx.league.name, matchId,
+        market: 'GG + Over 2.5', ourProb: m.probGGO25, bookOdds: m.ggO25Odds,
+        fairOddsVal: parseFloat(fairOdds(m.probGGO25)), edge: m.ggO25Edge, pattern: 'gg',
+        confidence: m.confidence, lineupConfirmed: m.lineupConfirmed,
+        aiNote: ai.gg || null, aiRejected: isAiRejected, aiFlag: ai.compliance_flag || null });
     }
-
-    // FIX 4: Upset picks are individually verified — if AI rejected the upset logic, mark rejected
     const upsetAiRejected = ai.upset_rejected === true;
     if (m.patterns.upset && m.odds.awayWin && m.awayEdge !== null && m.awayEdge >= minEdge) {
-      all.push({
-        match: `${fx.teams.home.name} vs ${fx.teams.away.name}`,
-        league: fx.league.name, matchId,
-        market: `${fx.teams.away.name} Win (Upset)`,
-        ourProb: m.probs.pA,
-        bookOdds: m.odds.awayWin,
-        fairOddsVal: parseFloat(fairOdds(m.probs.pA)),
-        edge: m.awayEdge,
-        pattern: 'upset',
-        confidence: m.confidence,
-        lineupConfirmed: m.lineupConfirmed,
-        aiNote: ai.upset || null,
-        aiRejected: isAiRejected || upsetAiRejected,
-        aiFlag: upsetAiRejected ? (ai.upset_rejection_reason || 'Team news contradicts statistical value') : (ai.compliance_flag || null)
-      });
+      all.push({ match: `${fx.teams.home.name} vs ${fx.teams.away.name}`, league: fx.league.name, matchId,
+        market: `${fx.teams.away.name} Win (Upset)`, ourProb: m.probs.pA, bookOdds: m.odds.awayWin,
+        fairOddsVal: parseFloat(fairOdds(m.probs.pA)), edge: m.awayEdge, pattern: 'upset',
+        confidence: m.confidence, lineupConfirmed: m.lineupConfirmed,
+        aiNote: ai.upset || null, aiRejected: isAiRejected || upsetAiRejected,
+        aiFlag: upsetAiRejected ? (ai.upset_rejection_reason || 'Team news contradicts upset value') : (ai.compliance_flag || null) });
     }
-
     if (!m.patterns.upset && m.odds.homeWin && m.homeEdge !== null && m.homeEdge >= minEdge) {
-      all.push({
-        match: `${fx.teams.home.name} vs ${fx.teams.away.name}`,
-        league: fx.league.name, matchId,
-        market: `${fx.teams.home.name} Win`,
-        ourProb: m.probs.pH,
-        bookOdds: m.odds.homeWin,
-        fairOddsVal: parseFloat(fairOdds(m.probs.pH)),
-        edge: m.homeEdge,
-        pattern: 'gg',
-        confidence: m.confidence,
-        lineupConfirmed: m.lineupConfirmed,
-        aiNote: ai.home || null,
-        aiRejected: isAiRejected,
-        aiFlag: ai.compliance_flag || null
-      });
+      all.push({ match: `${fx.teams.home.name} vs ${fx.teams.away.name}`, league: fx.league.name, matchId,
+        market: `${fx.teams.home.name} Win`, ourProb: m.probs.pH, bookOdds: m.odds.homeWin,
+        fairOddsVal: parseFloat(fairOdds(m.probs.pH)), edge: m.homeEdge, pattern: 'gg',
+        confidence: m.confidence, lineupConfirmed: m.lineupConfirmed,
+        aiNote: ai.home || null, aiRejected: isAiRejected, aiFlag: ai.compliance_flag || null });
     }
   }
-
-  return all.sort((a,b) => {
-    // AI-verified bets first, rejected last
-    if (a.aiRejected !== b.aiRejected) return a.aiRejected ? 1 : -1;
-    return b.edge - a.edge;
-  }).slice(0, 20);
+  return all.sort((a,b) => { if (a.aiRejected !== b.aiRejected) return a.aiRejected ? 1 : -1; return b.edge - a.edge; }).slice(0, 20);
 }
 
 // ============================================================
-//  FIX 4: AI COMPLIANCE — UPSET VERIFICATION + GHOST GUARD
-//  OpenRouter verifies each upset by checking if team news
-//  contradicts the statistical value signal.
+//  ACCU SNIPER AI — TARGET 100+ ODDS VIA STRICT PATTERNS
+//  v7.0: AI is now specifically briefed on the three Strict Patterns
+//  and its role is to verify each pattern's validity, not re-do math.
 // ============================================================
 async function runAICompliance(openRouterKey, matches) {
-  // FIX 2: These matches have already cleared a 20%+ value-gap in JS.
-  // The prompt is intentionally lean — only essential fields are sent.
-  // No redundant narrative; JSON-only response enforced strictly.
-
   const matchSummaries = matches.map(m => ({
     id: m.fixture.fixture.id,
     match: `${m.fixture.teams.home.name} vs ${m.fixture.teams.away.name}`,
@@ -1686,42 +1498,42 @@ async function runAICompliance(openRouterKey, matches) {
       away: m.awayEdge !== null ? m.awayEdge.toFixed(1)+'%' : null,
       home: m.homeEdge !== null ? m.homeEdge.toFixed(1)+'%' : null
     },
-    patterns: {
-      draw: m.patterns.draw,
-      gg: m.patterns.gg,
-      upset: m.patterns.upset,
-      homeFatigueGames: m.upsetAnalysis?.homeFatigue?.gamesIn12Days || 0
-    },
+    patterns: { draw: m.patterns.draw, gg: m.patterns.gg, upset: m.patterns.upset, homeFatigueGames: m.upsetAnalysis?.homeFatigue?.gamesIn12Days || 0 },
     lineupConfirmed: m.lineupConfirmed,
     starters: m.goalscorers.map(s => `${s.name}(${s.team},${s.position})`).join(',') || 'none',
     injuries: m.injuryList.slice(0, 4).join('; ') || 'none'
   }));
 
-  const prompt = `You are a Football Betting Compliance Officer.
-These ${matches.length} matches have already cleared a 20%+ statistical value gap via Poisson/Dixon-Coles modelling. Your job is VERIFICATION ONLY — do not re-assess the math.
+  const prompt = `You are the ACCU SNIPER — a specialist betting AI targeting a 100+ odds accumulator using three Strict Patterns only.
 
-CHECK EACH MATCH FOR:
-1. UPSET picks: If home team lineup is confirmed with first-choice XI, set upset_rejected=true. Also reject if key away players are injured.
-2. COMPLIANCE: Flag if data is clearly unreliable (unconfirmed lineup + no odds + unknown league).
-3. Provide one sharp sentence per market — no padding.
+STRICT PATTERNS (the ONLY valid selection criteria):
+1. HIGH-PROBABILITY DRAW: H2H draw rate ≥35%, xG differential <0.5. Both teams are closely matched. Verify this is NOT a one-sided fixture.
+2. GG + OVER 2.5: Both teams have weak defensive records (clean sheet rate <20%), combined avg goals >2.8. Verify key attackers are available.
+3. UPSET VALUE: Home team has played ≥4 games in 12 days (fatigue). Away team win rate >30%. Verify upset is not invalidated by confirmed home first XI.
 
-DATA (pre-filtered, 20%+ edge only):
+YOUR JOB (verification only — Poisson math is already done):
+- For DRAW picks: confirm the fixture is genuinely evenly matched.
+- For GG picks: confirm no key striker absences that would suppress goals.
+- For UPSET picks: if home lineup is confirmed first-choice XI, set upset_rejected=true.
+- compliance_flag: only use if data is clearly unreliable (no odds + unknown league + unconfirmed everything).
+
+DATA (${matches.length} picks, all 20%+ statistical edge):
 ${JSON.stringify(matchSummaries, null, 0)}
 
 RESPOND ONLY IN THIS EXACT JSON (no markdown, no backticks, no extra keys):
-{"fixtureId_insights":{"<id>":{"draw":"sentence","gg":"sentence","upset":"sentence","upset_rejected":false,"upset_rejection_reason":null,"home":"sentence","risk":"low|medium|high","compliance_flag":null}},"accumulator_risk":"low|medium|high","accumulator_note":"1 sentence summary"}}`;
+{"fixtureId_insights":{"<id>":{"draw":"1 sentence","gg":"1 sentence","upset":"1 sentence","upset_rejected":false,"upset_rejection_reason":null,"home":"1 sentence","risk":"low|medium|high","compliance_flag":null}},"accumulator_risk":"low|medium|high","accumulator_note":"1 sentence on 100+ odds potential"}}`;
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${openRouterKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://football-oracle.local',
-      'X-Title': 'Football Oracle Dashboard v3.0'
+      'HTTP-Referer': 'https://oracle-c9ql.vercel.app',
+      'X-Title': 'Football Oracle v7.0 — Accu Sniper'
     },
     body: JSON.stringify({
       model: 'anthropic/claude-sonnet-4-5',
-      max_tokens: 1200,
+      max_tokens: 1400,
       messages: [{ role: 'user', content: prompt }]
     })
   });
@@ -1741,8 +1553,7 @@ RESPOND ONLY IN THIS EXACT JSON (no markdown, no backticks, no extra keys):
     insights._accuRisk = parsed.accumulator_risk || 'medium';
     return insights;
   } catch(e) {
-    console.warn('AI JSON parse error:', e.message);
-    return {};
+    console.warn('AI JSON parse error:', e.message); return {};
   }
 }
 
@@ -1757,45 +1568,38 @@ function renderAll(results) {
 }
 
 function patternBadge(pattern) {
-  const map = {
-    draw: ['pattern-draw','DRAW HUNTER'],
-    gg: ['pattern-gg','GG+O2.5'],
-    upset: ['pattern-upset','UPSET SNIPER'],
-    gs: ['pattern-gs','GOALSCORER']
-  };
+  const map = { draw: ['pattern-draw','DRAW HUNTER'], gg: ['pattern-gg','GG+O2.5'], upset: ['pattern-upset','UPSET SNIPER'], gs: ['pattern-gs','GOALSCORER'] };
   const [cls, label] = map[pattern] || ['pattern-gg', pattern.toUpperCase()];
   return `<span class="pattern-badge ${cls}">${label}</span>`;
 }
-
 function lineupBadge(confirmed) {
-  return confirmed
-    ? `<span class="lineup-confirmed">✅ XI CONFIRMED</span>`
-    : `<span class="lineup-pending">⏳ LINEUP PENDING</span>`;
+  return confirmed ? `<span class="lineup-confirmed">✅ XI CONFIRMED</span>` : `<span class="lineup-pending">⏳ LINEUP PENDING</span>`;
 }
-
 function confBar(pct, pattern) {
   const colors = { draw: 'var(--blue-accent)', gg: 'var(--emerald)', upset: 'var(--red)', default: 'var(--gold)' };
-  const c = colors[pattern] || colors.default;
-  return `<div class="confidence-bar mt-1"><div class="confidence-fill" style="width:${Math.min(pct,100)}%;background:${c};"></div></div>`;
+  return `<div class="confidence-bar mt-1"><div class="confidence-fill" style="width:${Math.min(pct,100)}%;background:${colors[pattern]||colors.default};"></div></div>`;
 }
 
 function renderDaily100(daily100, aiInsights) {
   const el = document.getElementById('daily100Content');
   if (!daily100 || !daily100.legs || !daily100.legs.length) {
-    el.innerHTML = '<div class="no-data"><p class="mono text-sm" style="color:var(--text-muted);">No qualifying picks found today</p></div>';
+    el.innerHTML = '<div class="no-data"><p class="mono text-sm" style="color:var(--text-muted);">No qualifying picks found — try lowering Min Edge or run Extended scan</p></div>';
     return;
   }
-
   const accuRisk = aiInsights?._accuRisk || 'medium';
   const accuNote = aiInsights?._accuNote || '';
   const riskColor = { low: 'var(--emerald)', medium: 'var(--gold)', high: 'var(--red)' }[accuRisk] || 'var(--gold)';
+  const oddsTarget = daily100.combinedOdds >= 100
+    ? `<span style="color:var(--emerald);font-size:0.6rem;font-family:'JetBrains Mono',monospace;">✅ 100+ TARGET HIT</span>`
+    : `<span style="color:var(--gold);font-size:0.6rem;font-family:'JetBrains Mono',monospace;">⚡ ${(100 - daily100.combinedOdds).toFixed(0)}x SHORT OF 100</span>`;
 
   let html = `
     <div class="accu-slip p-4 mb-4">
-      <div class="flex items-start justify-between mb-3">
+      <div class="flex items-start justify-between mb-2">
         <div>
-          <div class="section-label mb-1">DAILY 100 ACCUMULATOR</div>
-          <div class="mono text-xs" style="color:var(--text-muted);font-size:0.62rem;">${daily100.legs.length} LEGS · AI VERIFIED (20%+ EDGE) · GHOST-FREE</div>
+          <div class="section-label mb-1">ACCU SNIPER — DAILY 100</div>
+          <div class="mono" style="color:var(--text-muted);font-size:0.62rem;">${daily100.legs.length} LEGS · STRICT PATTERNS · AI VERIFIED</div>
+          <div class="mt-1">${oddsTarget}</div>
         </div>
         <div class="text-right">
           <div class="big-odds">${daily100.combinedOdds.toFixed(0)}x</div>
@@ -1805,7 +1609,7 @@ function renderDaily100(daily100, aiInsights) {
 
   if (accuNote) {
     html += `<div class="p-2 rounded mb-3" style="background:rgba(0,194,255,0.05);border:1px solid rgba(0,194,255,0.15);">
-      <div class="mono" style="color:var(--text-dim);font-size:0.65rem;line-height:1.5;">🤖 ${accuNote}</div>
+      <div class="mono" style="color:var(--text-dim);font-size:0.65rem;line-height:1.5;">🎯 ${accuNote}</div>
     </div>`;
   }
 
@@ -1825,6 +1629,7 @@ function renderDaily100(daily100, aiInsights) {
         <div class="text-right">
           <div class="mono font-bold" style="color:var(--gold);font-size:0.9rem;">${leg.odds.toFixed(2)}</div>
           <div class="mono" style="color:var(--emerald);font-size:0.6rem;">${(leg.prob*100).toFixed(0)}%</div>
+          <div class="mono" style="color:var(--text-muted);font-size:0.58rem;">+${leg.edge.toFixed(0)}%</div>
         </div>
       </div>`;
   });
@@ -1843,31 +1648,26 @@ function renderDaily100(daily100, aiInsights) {
 function renderTop20(top20) {
   const el = document.getElementById('top20Content');
   if (!top20 || !top20.length) {
-    el.innerHTML = '<div class="no-data"><p class="mono text-sm" style="color:var(--text-muted);">No value bets found above edge threshold</p></div>';
+    el.innerHTML = '<div class="no-data"><p class="mono text-sm" style="color:var(--text-muted);">No value bets above edge threshold</p></div>';
     return;
   }
-
   let html = `<div class="section-label mb-2">GLOBAL TOP 20 VALUE BETS <span style="color:var(--emerald);">(${top20.length} found)</span></div>`;
-
   top20.forEach((bet, i) => {
     const edgeColor = bet.edge > 10 ? 'var(--emerald)' : bet.edge > 5 ? 'var(--gold)' : 'var(--text-dim)';
-    const rejectedClass = bet.aiRejected ? ' ai-rejected' : '';
-
     html += `
-      <div class="bet-item mb-2${rejectedClass}">
+      <div class="bet-item mb-2${bet.aiRejected ? ' ai-rejected' : ''}">
         <div class="flex items-start justify-between gap-2">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1 mb-0.5 flex-wrap">
               <span class="mono font-bold" style="color:var(--text-muted);font-size:0.62rem;">#${i+1}</span>
-              ${patternBadge(bet.pattern)}
-              ${lineupBadge(bet.lineupConfirmed)}
+              ${patternBadge(bet.pattern)} ${lineupBadge(bet.lineupConfirmed)}
               ${bet.aiRejected ? `<span class="ai-reject-badge">⚠ AI REJECTED</span>` : ''}
             </div>
             <div class="font-semibold match-name" style="font-size:0.82rem;line-height:1.3;">${bet.match}</div>
             <div class="mono" style="color:var(--text-muted);font-size:0.58rem;">${bet.league}</div>
             <div class="mono mt-1" style="color:var(--text-dim);font-size:0.68rem;font-weight:600;">${bet.market}</div>
             ${bet.aiFlag ? `<div class="mono mt-1" style="color:var(--red);font-size:0.58rem;">⛔ ${bet.aiFlag}</div>` : ''}
-            ${bet.aiNote && !bet.aiRejected ? `<div class="mono mt-1" style="color:rgba(0,194,255,0.7);font-size:0.58rem;font-style:italic;">🤖 ${bet.aiNote}</div>` : ''}
+            ${bet.aiNote && !bet.aiRejected ? `<div class="mono mt-1" style="color:rgba(0,194,255,0.7);font-size:0.58rem;font-style:italic;">🎯 ${bet.aiNote}</div>` : ''}
           </div>
           <div class="text-right">
             <div class="mono font-bold" style="color:var(--gold);font-size:0.9rem;">${bet.bookOdds ? bet.bookOdds.toFixed(2) : 'N/A'}</div>
@@ -1882,7 +1682,6 @@ function renderTop20(top20) {
         ${confBar(bet.confidence, bet.pattern)}
       </div>`;
   });
-
   el.innerHTML = html;
 }
 
@@ -1891,148 +1690,116 @@ function renderSpecialty(analyzed, aiInsights) {
 
   // DRAWS
   const draws = analyzed.filter(m => m.patterns.draw).sort((a,b) => b.drawAnalysis.h2hDrawRate - a.drawAnalysis.h2hDrawRate);
-  let drawHTML = `<div class="section-label mb-2">DRAW HUNTER PICKS (${draws.length})</div>`;
-  if (!draws.length) {
-    drawHTML = '<div class="no-data"><p class="mono text-sm" style="color:var(--text-muted);">No draw picks today</p></div>';
-  } else {
-    draws.slice(0,10).forEach(m => {
-      drawHTML += `
-        <div class="bet-item mb-2">
-          <div class="flex items-start justify-between gap-2">
-            <div class="flex-1">
-              <div class="font-semibold" style="font-size:0.82rem;">${m.fixture.teams.home.name} vs ${m.fixture.teams.away.name}</div>
-              <div class="mono" style="color:var(--text-muted);font-size:0.58rem;">${m.fixture.league.name}</div>
-              <div class="flex gap-1 mt-1 flex-wrap">
-                <span class="mono" style="color:var(--blue-accent);font-size:0.65rem;">H2H Draw: ${(m.drawAnalysis.h2hDrawRate*100).toFixed(0)}%</span>
-                <span class="mono" style="color:var(--text-dim);font-size:0.65rem;">xG Diff: ${m.drawAnalysis.xgDiff.toFixed(2)}</span>
-                ${lineupBadge(m.lineupConfirmed)}
-              </div>
-            </div>
-            <div class="text-right">
-              <div class="mono font-bold" style="color:var(--blue-accent);font-size:0.9rem;">${m.odds.draw ? m.odds.draw.toFixed(2) : fairOdds(m.probs.pD)}</div>
-              <div class="mono" style="color:var(--text-muted);font-size:0.6rem;">DRAW ${(m.probs.pD*100).toFixed(1)}%</div>
+  let drawHTML = draws.length
+    ? `<div class="section-label mb-2">DRAW HUNTER PICKS (${draws.length})</div>`
+    : '<div class="no-data"><p class="mono text-sm" style="color:var(--text-muted);">No draw picks today</p></div>';
+  draws.slice(0,10).forEach(m => {
+    drawHTML += `
+      <div class="bet-item mb-2">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1">
+            <div class="font-semibold" style="font-size:0.82rem;">${m.fixture.teams.home.name} vs ${m.fixture.teams.away.name}</div>
+            <div class="mono" style="color:var(--text-muted);font-size:0.58rem;">${m.fixture.league.name}</div>
+            <div class="flex gap-1 mt-1 flex-wrap">
+              <span class="mono" style="color:var(--blue-accent);font-size:0.65rem;">H2H Draw: ${(m.drawAnalysis.h2hDrawRate*100).toFixed(0)}%</span>
+              <span class="mono" style="color:var(--text-dim);font-size:0.65rem;">xG diff: ${m.drawAnalysis.xgDiff.toFixed(2)}</span>
+              ${lineupBadge(m.lineupConfirmed)}
             </div>
           </div>
-        </div>`;
-    });
-  }
+          <div class="text-right">
+            <div class="mono font-bold" style="color:var(--blue-accent);font-size:0.9rem;">${m.odds.draw ? m.odds.draw.toFixed(2) : fairOdds(m.probs.pD)}</div>
+            <div class="mono" style="color:var(--text-muted);font-size:0.6rem;">DRAW ${(m.probs.pD*100).toFixed(1)}%</div>
+          </div>
+        </div>
+      </div>`;
+  });
   document.getElementById('drawsContent').innerHTML = drawHTML;
 
   // GG+O2.5
   const ggs = analyzed.filter(m => m.patterns.gg || m.probGGO25 > 0.5).sort((a,b) => b.probGGO25 - a.probGGO25);
-  let ggHTML = `<div class="section-label mb-2">GG + OVER 2.5 PICKS (${ggs.length})</div>`;
-  if (!ggs.length) {
-    ggHTML = '<div class="no-data"><p class="mono text-sm" style="color:var(--text-muted);">No GG+O2.5 picks today</p></div>';
-  } else {
-    ggs.slice(0,10).forEach(m => {
-      ggHTML += `
-        <div class="bet-item mb-2">
-          <div class="flex items-start justify-between gap-2">
-            <div class="flex-1">
-              <div class="font-semibold" style="font-size:0.82rem;">${m.fixture.teams.home.name} vs ${m.fixture.teams.away.name}</div>
-              <div class="mono" style="color:var(--text-muted);font-size:0.58rem;">${m.fixture.league.name}</div>
-              <div class="flex gap-1 mt-1 flex-wrap">
-                <span class="mono" style="color:var(--emerald);font-size:0.65rem;">GG: ${(m.probGG*100).toFixed(0)}%</span>
-                <span class="mono" style="color:var(--emerald);font-size:0.65rem;">O2.5: ${(m.probO25*100).toFixed(0)}%</span>
-                <span class="mono" style="color:var(--text-dim);font-size:0.65rem;">Avg: ${m.ggAnalysis.combinedAvg.toFixed(2)}</span>
-                ${lineupBadge(m.lineupConfirmed)}
-              </div>
-            </div>
-            <div class="text-right">
-              <div class="mono font-bold" style="color:var(--emerald);font-size:0.9rem;">${m.ggO25Odds ? m.ggO25Odds.toFixed(2) : fairOdds(m.probGGO25)}</div>
-              <div class="mono" style="color:var(--text-muted);font-size:0.6rem;">PROB ${(m.probGGO25*100).toFixed(1)}%</div>
+  let ggHTML = ggs.length
+    ? `<div class="section-label mb-2">GG + OVER 2.5 PICKS (${ggs.length})</div>`
+    : '<div class="no-data"><p class="mono text-sm" style="color:var(--text-muted);">No GG+O2.5 picks today</p></div>';
+  ggs.slice(0,10).forEach(m => {
+    ggHTML += `
+      <div class="bet-item mb-2">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1">
+            <div class="font-semibold" style="font-size:0.82rem;">${m.fixture.teams.home.name} vs ${m.fixture.teams.away.name}</div>
+            <div class="mono" style="color:var(--text-muted);font-size:0.58rem;">${m.fixture.league.name}</div>
+            <div class="flex gap-1 mt-1 flex-wrap">
+              <span class="mono" style="color:var(--emerald);font-size:0.65rem;">GG: ${(m.probGG*100).toFixed(0)}%</span>
+              <span class="mono" style="color:var(--emerald);font-size:0.65rem;">O2.5: ${(m.probO25*100).toFixed(0)}%</span>
+              <span class="mono" style="color:var(--text-dim);font-size:0.65rem;">Avg: ${m.ggAnalysis.combinedAvg.toFixed(2)}</span>
+              ${lineupBadge(m.lineupConfirmed)}
             </div>
           </div>
-        </div>`;
-    });
-  }
+          <div class="text-right">
+            <div class="mono font-bold" style="color:var(--emerald);font-size:0.9rem;">${m.ggO25Odds ? m.ggO25Odds.toFixed(2) : fairOdds(m.probGGO25)}</div>
+            <div class="mono" style="color:var(--text-muted);font-size:0.6rem;">PROB ${(m.probGGO25*100).toFixed(1)}%</div>
+          </div>
+        </div>
+      </div>`;
+  });
   document.getElementById('ggContent').innerHTML = ggHTML;
 
-  // UPSETS — FIX 4: show AI rejection status prominently
+  // UPSETS
   const upsets = analyzed.filter(m => m.patterns.upset).sort((a,b) => b.upsetAnalysis.awayWinRate - a.upsetAnalysis.awayWinRate);
-  let upsetHTML = `<div class="section-label mb-2">UPSET SNIPER PICKS (${upsets.length})</div>`;
-  if (!upsets.length) {
-    upsetHTML = '<div class="no-data"><p class="mono text-sm" style="color:var(--text-muted);">No upset opportunities today</p></div>';
-  } else {
-    upsets.slice(0,10).forEach(m => {
-      const ai = (aiInsights || {})[m.fixture.fixture.id] || {};
-      const upsetRejected = ai.upset_rejected === true;
-      const rejClass = upsetRejected ? ' ai-rejected' : '';
-      upsetHTML += `
-        <div class="bet-item mb-2${rejClass}">
-          <div class="flex items-start justify-between gap-2">
-            <div class="flex-1">
-              <div class="flex items-center gap-1 mb-1 flex-wrap">
-                ${patternBadge('upset')}
-                ${lineupBadge(m.lineupConfirmed)}
-                ${upsetRejected ? `<span class="ai-reject-badge">⚠ AI REJECTED</span>` : ''}
-              </div>
-              <div class="font-semibold match-name" style="font-size:0.82rem;">${m.fixture.teams.home.name} vs ${m.fixture.teams.away.name}</div>
-              <div class="mono" style="color:var(--text-muted);font-size:0.58rem;">${m.fixture.league.name}</div>
-              <div class="mono mt-1" style="color:var(--red);font-size:0.65rem;">⚠ Home fatigued: ${m.upsetAnalysis.homeFatigue.gamesIn12Days} games/12d</div>
-              <div class="mono" style="color:var(--text-dim);font-size:0.65rem;">Away win rate: ${(m.upsetAnalysis.awayWinRate*100).toFixed(0)}%</div>
-              ${upsetRejected && ai.upset_rejection_reason ? `<div class="mono mt-1" style="color:var(--red);font-size:0.58rem;font-style:italic;">⛔ ${ai.upset_rejection_reason}</div>` : ''}
-              ${!upsetRejected && ai.upset ? `<div class="mono mt-1" style="color:rgba(0,194,255,0.7);font-size:0.58rem;font-style:italic;">🤖 ${ai.upset}</div>` : ''}
+  let upsetHTML = upsets.length
+    ? `<div class="section-label mb-2">UPSET SNIPER PICKS (${upsets.length})</div>`
+    : '<div class="no-data"><p class="mono text-sm" style="color:var(--text-muted);">No upset opportunities today</p></div>';
+  upsets.slice(0,10).forEach(m => {
+    const ai = (aiInsights || {})[m.fixture.fixture.id] || {};
+    const upsetRejected = ai.upset_rejected === true;
+    upsetHTML += `
+      <div class="bet-item mb-2${upsetRejected ? ' ai-rejected' : ''}">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1">
+            <div class="flex items-center gap-1 mb-1 flex-wrap">
+              ${patternBadge('upset')} ${lineupBadge(m.lineupConfirmed)}
+              ${upsetRejected ? `<span class="ai-reject-badge">⚠ AI REJECTED</span>` : ''}
             </div>
-            <div class="text-right">
-              <div class="mono font-bold" style="color:${upsetRejected ? 'var(--text-muted)' : 'var(--red)'};font-size:0.9rem;">${m.odds.awayWin ? m.odds.awayWin.toFixed(2) : fairOdds(m.probs.pA)}</div>
-              <div class="mono" style="color:var(--text-muted);font-size:0.6rem;">AWAY ${(m.probs.pA*100).toFixed(1)}%</div>
-            </div>
+            <div class="font-semibold match-name" style="font-size:0.82rem;">${m.fixture.teams.home.name} vs ${m.fixture.teams.away.name}</div>
+            <div class="mono" style="color:var(--text-muted);font-size:0.58rem;">${m.fixture.league.name}</div>
+            <div class="mono mt-1" style="color:var(--red);font-size:0.65rem;">⚠ Home fatigue: ${m.upsetAnalysis.homeFatigue.gamesIn12Days} games/12d</div>
+            <div class="mono" style="color:var(--text-dim);font-size:0.65rem;">Away win rate: ${(m.upsetAnalysis.awayWinRate*100).toFixed(0)}%</div>
+            ${upsetRejected && ai.upset_rejection_reason ? `<div class="mono mt-1" style="color:var(--red);font-size:0.58rem;">⛔ ${ai.upset_rejection_reason}</div>` : ''}
+            ${!upsetRejected && ai.upset ? `<div class="mono mt-1" style="color:rgba(0,194,255,0.7);font-size:0.58rem;">🎯 ${ai.upset}</div>` : ''}
           </div>
-        </div>`;
-    });
-  }
+          <div class="text-right">
+            <div class="mono font-bold" style="color:${upsetRejected ? 'var(--text-muted)' : 'var(--red)'};font-size:0.9rem;">${m.odds.awayWin ? m.odds.awayWin.toFixed(2) : fairOdds(m.probs.pA)}</div>
+            <div class="mono" style="color:var(--text-muted);font-size:0.6rem;">AWAY ${(m.probs.pA*100).toFixed(1)}%</div>
+          </div>
+        </div>
+      </div>`;
+  });
   document.getElementById('upsetsContent').innerHTML = upsetHTML;
 }
 
-// FIX 3: Goalscorers tab — only confirmed starters, ghost-free
 function renderGoalscorers(analyzed) {
   const el = document.getElementById('goalscorersContent');
   if (!analyzed) return;
-
-  const allScorers = [];
-  let confirmedMatchCount = 0;
-
+  const allScorers = []; let confirmedMatchCount = 0;
   for (const m of analyzed) {
-    const lineupConfirmed = m.lineupConfirmed;
-    if (lineupConfirmed) confirmedMatchCount++;
-
-    if (m.goalscorers && m.goalscorers.length) {
+    if (m.lineupConfirmed) confirmedMatchCount++;
+    if (m.goalscorers?.length) {
       for (const s of m.goalscorers) {
         if (s.isStarting && !s.isGhost) {
-          allScorers.push({
-            ...s,
-            match: `${m.fixture.teams.home.name} vs ${m.fixture.teams.away.name}`,
-            league: m.fixture.league.name,
-            lineupConfirmed
-          });
+          allScorers.push({ ...s, match: `${m.fixture.teams.home.name} vs ${m.fixture.teams.away.name}`, league: m.fixture.league.name, lineupConfirmed: m.lineupConfirmed });
         }
       }
     }
   }
-
   if (!allScorers.length) {
-    el.innerHTML = `<div class="no-data">
-      <p class="mono text-sm" style="color:var(--text-muted);">Lineups not yet confirmed for today's matches</p>
-      <p class="mono" style="color:var(--text-muted);font-size:0.65rem;margin-top:8px;">${confirmedMatchCount} of ${analyzed.length} lineups confirmed</p>
-    </div>`;
+    el.innerHTML = `<div class="no-data"><p class="mono text-sm" style="color:var(--text-muted);">Lineups not yet confirmed</p><p class="mono" style="color:var(--text-muted);font-size:0.65rem;margin-top:8px;">${confirmedMatchCount} of ${analyzed.length} lineups confirmed</p></div>`;
     return;
   }
-
-  let html = `
-    <div class="section-label mb-1">CONFIRMED STARTERS — SCORER AUDIT</div>
+  let html = `<div class="section-label mb-1">CONFIRMED STARTERS — SCORER AUDIT</div>
     <div class="flex items-center gap-2 mb-3">
-      <div class="mono" style="color:rgba(0,255,136,0.6);font-size:0.62rem;">✅ ONLY CONFIRMED STARTING XI INCLUDED</div>
-      <span class="lineup-confirmed">${confirmedMatchCount} LINEUPS CONFIRMED</span>
-    </div>
-    <div class="p-2 rounded mb-3" style="background:rgba(255,59,92,0.05);border:1px solid rgba(255,59,92,0.15);">
-      <div class="mono" style="color:var(--red);font-size:0.6rem;line-height:1.5;">
-        🛡 Ghost Prevention Active — Players not in confirmed XI are automatically excluded.<br>
-        No predictions for ${analyzed.length - confirmedMatchCount} matches with unconfirmed lineups.
-      </div>
+      <div class="mono" style="color:rgba(0,255,136,0.6);font-size:0.62rem;">✅ ONLY CONFIRMED STARTING XI</div>
+      <span class="lineup-confirmed">${confirmedMatchCount} CONFIRMED</span>
     </div>`;
-
-  allScorers.slice(0, 20).forEach(s => {
+  allScorers.slice(0,20).forEach(s => {
     const posColor = s.position === 'F' ? 'var(--red)' : 'var(--gold)';
     html += `
       <div class="bet-item mb-2">
@@ -2042,7 +1809,6 @@ function renderGoalscorers(analyzed) {
             <div>
               <div class="font-semibold" style="font-size:0.82rem;">${s.name}</div>
               <div class="mono" style="color:var(--text-muted);font-size:0.58rem;">${s.team} · ${s.match}</div>
-              <div class="mono" style="color:var(--text-muted);font-size:0.56rem;">${s.league}</div>
             </div>
           </div>
           <div class="text-right">
@@ -2052,14 +1818,13 @@ function renderGoalscorers(analyzed) {
         </div>
       </div>`;
   });
-
   el.innerHTML = html;
 }
 
 function updateStats(daily100, top20, analyzed) {
   document.getElementById('statAccu').textContent = daily100?.combinedOdds ? daily100.combinedOdds.toFixed(0)+'x' : '—';
   document.getElementById('statValue').textContent = top20?.length || '—';
-  if (analyzed && analyzed.length) {
+  if (analyzed?.length) {
     const avg = analyzed.reduce((s,m) => s + m.confidence, 0) / analyzed.length;
     document.getElementById('statConf').textContent = avg.toFixed(0)+'%';
   }
@@ -2072,13 +1837,7 @@ function logToLedger(daily100, top20) {
   const ledger = JSON.parse(localStorage.getItem(STORAGE_KEYS.LEDGER) || '[]');
   const today = new Date().toLocaleDateString();
   if (ledger.find(l => l.date === today)) return;
-  ledger.unshift({
-    date: today,
-    accuOdds: daily100?.combinedOdds?.toFixed(2) || 'N/A',
-    valueBets: top20?.length || 0,
-    result: 'pending',
-    legs: daily100?.legs?.length || 0
-  });
+  ledger.unshift({ date: today, accuOdds: daily100?.combinedOdds?.toFixed(2) || 'N/A', valueBets: top20?.length || 0, result: 'pending', legs: daily100?.legs?.length || 0 });
   if (ledger.length > 60) ledger.pop();
   localStorage.setItem(STORAGE_KEYS.LEDGER, JSON.stringify(ledger));
 }
@@ -2088,17 +1847,14 @@ function renderLedger() {
   const wins = ledger.filter(l => l.result === 'win').length;
   const losses = ledger.filter(l => l.result === 'loss').length;
   const rate = (wins + losses) ? ((wins/(wins+losses))*100).toFixed(0) : 0;
-
   document.getElementById('ledgerWin').textContent = wins;
   document.getElementById('ledgerLoss').textContent = losses;
   document.getElementById('ledgerRate').textContent = rate + '%';
-
   const el = document.getElementById('ledgerList');
   if (!ledger.length) {
     el.innerHTML = '<div class="no-data"><p class="mono text-sm" style="color:var(--text-muted);">No history yet. Run your first scan.</p></div>';
     return;
   }
-
   let html = `<div class="section-label mb-2">SCAN HISTORY (${ledger.length} days)</div>`;
   ledger.forEach((l, i) => {
     const rc = l.result === 'win' ? 'var(--emerald)' : l.result === 'loss' ? 'var(--red)' : 'var(--text-muted)';
@@ -2111,8 +1867,7 @@ function renderLedger() {
           </div>
           <div class="flex items-center gap-2">
             <div class="mono font-bold" style="color:var(--gold);font-size:0.8rem;">${l.accuOdds}x</div>
-            <select onchange="updateLedgerResult(${i}, this.value)"
-              class="mono rounded px-2 py-1"
+            <select onchange="updateLedgerResult(${i}, this.value)" class="mono rounded px-2 py-1"
               style="background:var(--bg-deep);border:1px solid var(--border);color:${rc};font-size:0.62rem;cursor:pointer;">
               <option value="pending" ${l.result==='pending'?'selected':''}>⏳ PENDING</option>
               <option value="win" ${l.result==='win'?'selected':''}>✅ WON</option>
@@ -2127,19 +1882,11 @@ function renderLedger() {
 
 function updateLedgerResult(idx, result) {
   const ledger = JSON.parse(localStorage.getItem(STORAGE_KEYS.LEDGER) || '[]');
-  if (ledger[idx]) {
-    ledger[idx].result = result;
-    localStorage.setItem(STORAGE_KEYS.LEDGER, JSON.stringify(ledger));
-    renderLedger();
-  }
+  if (ledger[idx]) { ledger[idx].result = result; localStorage.setItem(STORAGE_KEYS.LEDGER, JSON.stringify(ledger)); renderLedger(); }
 }
 
 function clearLedger() {
-  if (confirm('Clear all ledger history?')) {
-    localStorage.removeItem(STORAGE_KEYS.LEDGER);
-    renderLedger();
-    showToast('Ledger cleared', 'gold');
-  }
+  if (confirm('Clear all ledger history?')) { localStorage.removeItem(STORAGE_KEYS.LEDGER); renderLedger(); showToast('Ledger cleared', 'gold'); }
 }
 
 // ============================================================
@@ -2148,20 +1895,14 @@ function clearLedger() {
 function exportSlip() {
   const results = JSON.parse(localStorage.getItem(STORAGE_KEYS.LAST_RESULTS) || '{}');
   if (!results.daily100?.legs?.length) { showToast('No slip to copy', 'red'); return; }
-
   const date = new Date().toLocaleDateString();
-  let text = `🔮 FOOTBALL ORACLE v4.0 — GLOBAL DAILY 100\n📅 ${date}\n${'='.repeat(36)}\n🌍 GLOBAL SCAN — ALL LEAGUES\n✅ 20%+ VALUE-GAP AI FILTER ACTIVE\n✅ LINEUP COMPLIANCE VERIFIED\n${'='.repeat(36)}\n\n`;
-
+  let text = `🎯 FOOTBALL ORACLE v7.0 — ACCU SNIPER\n📅 ${date}\n${'='.repeat(38)}\n🌍 GLOBAL SCAN · STRICT PATTERNS ONLY\n✅ DRAW HUNTER + GG+O2.5 + UPSET VALUE\n✅ AI VERIFIED (20%+ EDGE)\n🎯 TARGET: 100+ COMBINED ODDS\n${'='.repeat(38)}\n\n`;
   results.daily100.legs.forEach((leg, i) => {
     text += `${i+1}. ${leg.match}\n   📌 ${leg.market} @ ${leg.odds.toFixed(2)}\n   📊 ${leg.reason}\n\n`;
   });
-
-  text += `${'='.repeat(34)}\n💰 COMBINED ODDS: ${results.daily100.combinedOdds.toFixed(2)}x\n`;
+  text += `${'='.repeat(36)}\n💰 COMBINED ODDS: ${results.daily100.combinedOdds.toFixed(2)}x\n`;
   text += `⚠ For entertainment only. Bet responsibly.`;
-
-  navigator.clipboard.writeText(text)
-    .then(() => showToast('✅ Slip copied!', 'emerald'))
-    .catch(() => showToast('❌ Copy failed', 'red'));
+  navigator.clipboard.writeText(text).then(() => showToast('✅ Slip copied!', 'emerald')).catch(() => showToast('❌ Copy failed', 'red'));
 }
 
 // ============================================================
@@ -2178,38 +1919,15 @@ function switchTab(tabId) {
 function showToast(msg, type='gold') {
   const t = document.getElementById('toast');
   const c = { gold: 'var(--gold)', emerald: 'var(--emerald)', red: 'var(--red)' };
-  t.style.color = c[type] || c.gold;
-  t.textContent = msg;
-  t.style.display = 'block';
-  t.style.opacity = '1';
-  setTimeout(() => {
-    t.style.opacity = '0';
-    setTimeout(() => t.style.display = 'none', 300);
-  }, 3000);
+  t.style.color = c[type] || c.gold; t.textContent = msg;
+  t.style.display = 'block'; t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.style.display = 'none', 300); }, 3000);
 }
 
 // ============================================================
 //  INIT
 // ============================================================
 window.addEventListener('DOMContentLoaded', () => {
-  // ── MIGRATION: Force-replace stale proxy URLs from v3 ──
-  const GOOD_PROXY = 'https://api.allorigins.win/raw?url=';
-  const _oldProxy = localStorage.getItem(STORAGE_KEYS.CORS_PROXY) || '';
-  const proxyWasStale = !_oldProxy || _oldProxy.includes('corsproxy.io') || _oldProxy.includes('cors-anywhere');
-  if (proxyWasStale) {
-    localStorage.setItem(STORAGE_KEYS.CORS_PROXY, GOOD_PROXY);
-    console.info('[Oracle v4] Proxy auto-migrated → allorigins.win');
-  }
-
-  // ── MIGRATION: Fix "2025/2026" season format → "2025" ──
-  // API-Football only accepts plain year integers.
-  const _oldSeason = localStorage.getItem(STORAGE_KEYS.SEASON) || '';
-  if (_oldSeason.includes('/')) {
-    const fixedSeason = _oldSeason.split('/')[0].trim();
-    localStorage.setItem(STORAGE_KEYS.SEASON, fixedSeason);
-    console.info(`[Oracle v4] Season migrated: "${_oldSeason}" → "${fixedSeason}"`);
-  }
-
   const saved = localStorage.getItem(STORAGE_KEYS.LAST_RESULTS);
   const lastDate = localStorage.getItem(STORAGE_KEYS.LAST_SCAN_DATE);
 
@@ -2231,13 +1949,7 @@ window.addEventListener('DOMContentLoaded', () => {
   renderLedger();
 
   const s = getSettings();
-
-  // Notify user if proxy was silently upgraded
-  if (proxyWasStale) {
-    setTimeout(() => showToast('🔀 Proxy auto-upgraded to allorigins.win', 'emerald'), 700);
-  }
-
-  if (!s.footballKey) {
+  if (!s.footballKey && !s.oddsKey) {
     setTimeout(openSettings, 900);
     showToast('⚙ Enter your API keys to get started', 'gold');
   }
