@@ -557,10 +557,13 @@ const STORAGE_KEYS = {
   LAST_SCAN_DATE: 'oracle_last_scan_date'
 };
 
-// Auto-derive season: Aug–May = previous year, Jun–Dec = current year
+/// Auto-derive season: Aug–May = previous year, Jun–Dec = current year
+// Month 0 = January, 7 = August
 function getCurrentSeason() {
   const now = new Date();
-  return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+  const month = now.getMonth();
+  const year = now.getFullYear();
+  return month >= 7 ? year : year - 1;
 }
 
 const VALUE_GAP_THRESHOLD = 20; // percent
@@ -761,9 +764,14 @@ async function apfGet(endpoint, params, key) {
 
 async function getFixturesToday(key, season) {
   // v7.0: Fetch today AND tomorrow to widen the 24-48h fixture pool
+  // Always use current date/time
   const today = new Date();
-  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
   const fmt = d => d.toISOString().split('T')[0];
+
+  console.log(`Fetching fixtures for: ${fmt(today)} (today) and ${fmt(tomorrow)} (tomorrow)`);
+
   try {
     const [todayFix, tomorrowFix] = await Promise.all([
       apfGet('fixtures', { date: fmt(today), season }, key),
@@ -812,25 +820,40 @@ function filterNext48h(events) {
   const now = Date.now();
   const cutoff = now + (48 * 60 * 60 * 1000);
   return events.filter(ev => {
-    if (!ev.commence_time) return true; // keep if no date field
+    if (!ev.commence_time) return false;
     const t = new Date(ev.commence_time).getTime();
+    if (isNaN(t)) {
+      console.warn('Invalid commence_time for event:', ev);
+      return false;
+    }
     return t >= now && t <= cutoff;
   });
 }
 
 async function getAllSoccerSportKeys(oddsKey) {
-  const r = await fetch(`https://api.the-odds-api.com/v4/sports/?apiKey=${oddsKey}`, {
-    signal: AbortSignal.timeout(12000)
-  });
-  if (!r.ok) throw new Error(`Odds API sports HTTP ${r.status}`);
-  const sports = await r.json();
-  if (!Array.isArray(sports)) return [];
-  return sports
-    .filter(s => s.active && (
-      /soccer|football/i.test(s.group || '') ||
-      /soccer|football/i.test(s.key || '')
-    ))
-    .map(s => s.key);
+  try {
+    const r = await fetch(`https://api.the-odds-api.com/v4/sports/?apiKey=${oddsKey}`, {
+      signal: AbortSignal.timeout(12000)
+    });
+    if (!r.ok) {
+      const errorText = await r.text();
+      throw new Error(`Odds API sports HTTP ${r.status}: ${errorText}`);
+    }
+    const sports = await r.json();
+    if (!Array.isArray(sports)) {
+      console.warn('Odds API returned non-array response:', sports);
+      return [];
+    }
+    return sports
+      .filter(s => s.active && (
+        /soccer|football/i.test(s.group || '') ||
+        /soccer|football/i.test(s.key || '')
+      ))
+      .map(s => s.key);
+  } catch(e) {
+    console.error('Error fetching soccer sport keys:', e.message);
+    throw e;
+  }
 }
 
 async function getOddsForSport(oddsKey, sport) {
