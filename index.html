@@ -319,7 +319,7 @@
       <div class="pulse-dot"></div>
       <div>
         <div class="bebas text-xl logo-glow" style="color:var(--gold);letter-spacing:2px;">FOOTBALL ORACLE</div>
-        <div class="mono text-xs" style="color:var(--text-muted);font-size:0.58rem;letter-spacing:1px;">GLOBAL INTELLIGENCE SYSTEM v7.0 · DIRECT API · NO PROXY</div>
+        <div class="mono text-xs" style="color:var(--text-muted);font-size:0.58rem;letter-spacing:1px;">GLOBAL INTELLIGENCE SYSTEM v7.2 · DIRECT API · x-apisports-key</div>
         <!-- Live API Status Row -->
         <div class="api-status-row" id="headerStatusRow">
           <span class="api-dot grey" id="hdrFootballDot"><span class="dot"></span>API-FOOTBALL</span>
@@ -481,9 +481,9 @@
 
     <div class="space-y-3">
       <div>
-        <div class="section-label mb-1">API-FOOTBALL KEY (RapidAPI)</div>
-        <input class="oracle-input" id="settingFootballKey" type="password" placeholder="Enter x-rapidapi-key...">
-        <div class="mono mt-1" style="color:var(--text-muted);font-size:0.58rem;">Used as x-rapidapi-key header → api-football.v3.rapi.net</div>
+        <div class="section-label mb-1">API-FOOTBALL KEY (api-sports.io)</div>
+        <input class="oracle-input" id="settingFootballKey" type="password" placeholder="Enter your x-apisports-key...">
+        <div class="mono mt-1" style="color:var(--text-muted);font-size:0.58rem;">Used as x-apisports-key header → v3.football.api-sports.io (direct)</div>
       </div>
       <div>
         <div class="section-label mb-1">THE ODDS API KEY</div>
@@ -521,7 +521,7 @@
     <div class="mt-4 p-3 rounded" style="background:rgba(0,194,255,0.05);border:1px solid rgba(0,194,255,0.15);">
       <div class="mono" style="color:var(--blue-accent);font-size:0.62rem;line-height:1.6;">
         🚀 v7.0: DIRECT API — zero CORS proxies<br>
-        🔑 API-Football: x-rapidapi-key header (RapidAPI endpoint)<br>
+        🔑 API-Football: x-apisports-key → v3.football.api-sports.io<br>
         📡 Odds API: direct fetch, apiKey param, 24-48h window<br>
         🎯 Accu Sniper: 100+ odds via Strict Pattern selection<br>
         ✅ Connection status live in header bar
@@ -563,7 +563,7 @@ function getCurrentSeason() {
   return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
 }
 
-// v7.2: VALUE_GAP_THRESHOLD removed — now uses minEdge from Settings
+// v7.2: No hardcoded threshold — uses minEdge from Settings
 
 function getSettings() {
   return {
@@ -621,12 +621,11 @@ async function testConnections() {
   box.innerHTML = '<div class="mono text-xs" style="color:var(--text-muted);">Testing connections (direct fetch)...</div>';
   const results = [];
 
-  // ── API-Football (RapidAPI direct) ──
+  // ── API-Football (api-sports.io, x-apisports-key) ──
   try {
-    const r = await fetch('https://api-football.v3.rapi.net/v3/status', {
+    const r = await fetch('https://v3.football.api-sports.io/status', {
       headers: {
-        'x-rapidapi-key': s.footballKey,
-        'x-rapidapi-host': 'api-football.v3.rapi.net'
+        'x-apisports-key': s.footballKey
       },
       signal: AbortSignal.timeout(10000)
     });
@@ -736,19 +735,18 @@ function valueEdge(ourProb, marketOdds) {
 function fairOdds(prob) { return prob > 0 ? (1 / prob).toFixed(2) : '∞'; }
 
 // ============================================================
-//  API-FOOTBALL — DIRECT FETCH (RapidAPI endpoint)
-//  v7.0: No proxy. Sends x-rapidapi-key + x-rapidapi-host headers.
-//  Vercel HTTPS environment handles CORS natively.
+//  API-FOOTBALL — DIRECT FETCH (api-sports.io)
+//  v7.2: Uses x-apisports-key (NOT x-rapidapi-key).
+//  v3.football.api-sports.io allows CORS from browser.
 // ============================================================
 async function apfGet(endpoint, params, key) {
-  const base = `https://api-football.v3.rapi.net/v3/${endpoint}`;
+  const base = `https://v3.football.api-sports.io/${endpoint}`;
   const url = new URL(base);
   Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
 
   const r = await fetch(url.toString(), {
     headers: {
-      'x-rapidapi-key': key,
-      'x-rapidapi-host': 'api-football.v3.rapi.net'
+      'x-apisports-key': key
     },
     signal: AbortSignal.timeout(15000)
   });
@@ -760,14 +758,15 @@ async function apfGet(endpoint, params, key) {
 }
 
 async function getFixturesToday(key, season) {
-  // v7.0: Fetch today AND tomorrow to widen the 24-48h fixture pool
+  // v7.2: Do NOT pass season to /fixtures?date= — it filters to one
+  // league-season and can return 0. Date-only returns all leagues.
   const today = new Date();
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
   const fmt = d => d.toISOString().split('T')[0];
   try {
     const [todayFix, tomorrowFix] = await Promise.all([
-      apfGet('fixtures', { date: fmt(today), season }, key),
-      apfGet('fixtures', { date: fmt(tomorrow), season }, key)
+      apfGet('fixtures', { date: fmt(today) }, key),
+      apfGet('fixtures', { date: fmt(tomorrow) }, key)
     ]);
     const combined = [...(todayFix||[]), ...(tomorrowFix||[])];
     // Deduplicate by fixture id
@@ -809,12 +808,16 @@ async function getRecentFixtures(key, teamId, last) {
 //  Date filtering: keep only events commencing in next 48 hours.
 // ============================================================
 function filterNext48h(events) {
-  const now = Date.now();
-  const cutoff = now + (48 * 60 * 60 * 1000);
+  // v7.2: Start from midnight today (include in-progress matches),
+  // extend window to 72h to catch all tomorrow's fixtures too.
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const startMs = todayStart.getTime();
+  const cutoff = Date.now() + (72 * 60 * 60 * 1000);
   return events.filter(ev => {
-    if (!ev.commence_time) return true; // keep if no date field
+    if (!ev.commence_time) return true;
     const t = new Date(ev.commence_time).getTime();
-    return t >= now && t <= cutoff;
+    return t >= startMs && t <= cutoff;
   });
 }
 
@@ -1044,7 +1047,7 @@ async function runScan() {
   try {
     // ── STEP 1: Fixtures from API-Football (today + tomorrow) ──
     setProgress(5, '🌍 Fetching 24-48h fixtures (direct API-Football)...');
-    addScanLog('📡 Connecting to api-football.v3.rapi.net (x-rapidapi-key)...');
+    addScanLog('📡 Connecting to v3.football.api-sports.io (x-apisports-key)...');
 
     let fixtures = [];
     let apfOnline = false;
@@ -1210,13 +1213,13 @@ async function runScan() {
     setProgress(97, '💾 Saving...');
     const results = { daily100, top20, analyzed, timestamp: Date.now(), aiInsights };
     localStorage.setItem(STORAGE_KEYS.LAST_RESULTS, JSON.stringify(results));
-    localStorage.setItem(STORAGE_KEYS.LAST_SCAN_DATE, new Date().toLocaleDateString());
+    localStorage.setItem(STORAGE_KEYS.LAST_SCAN_DATE, new Date().toISOString().split('T')[0] + ' @ ' + new Date().toLocaleTimeString());
 
     renderAll(results);
     updateStats(daily100, top20, analyzed);
     setProgress(100, `✅ Done — ${analyzed.length} matches · ${top20.length} value bets · ${daily100.legs?.length||0} accu legs`);
 
-    document.getElementById('lastScan').textContent = `LAST SCAN: TODAY ${new Date().toLocaleTimeString()}`;
+    document.getElementById('lastScan').textContent = `LAST SCAN: ${new Date().toISOString().split('T')[0]} @ ${new Date().toLocaleTimeString()}`;
     document.getElementById('scanStats').style.display = 'block';
     document.getElementById('matchesFound').textContent = `${analyzed.length} MATCHES`;
     document.getElementById('valueFound').textContent = `${top20.length} VALUE BETS`;
@@ -1311,7 +1314,7 @@ async function runBackupRegionScan() {
     const top20 = buildTop20(analyzed, s.minEdge, {});
     const results = { daily100, top20, analyzed, timestamp: Date.now(), aiInsights: {} };
     localStorage.setItem(STORAGE_KEYS.LAST_RESULTS, JSON.stringify(results));
-    localStorage.setItem(STORAGE_KEYS.LAST_SCAN_DATE, new Date().toLocaleDateString() + ' (extended)');
+    localStorage.setItem(STORAGE_KEYS.LAST_SCAN_DATE, new Date().toISOString().split('T')[0] + ' (extended)');
     renderAll(results); updateStats(daily100, top20, analyzed);
     setProgress(100, `✅ Extended scan done — ${analyzed.length} matches`);
     document.getElementById('lastScan').textContent = `LAST SCAN: EXTENDED 48H`;
@@ -1835,7 +1838,7 @@ function updateStats(daily100, top20, analyzed) {
 // ============================================================
 function logToLedger(daily100, top20) {
   const ledger = JSON.parse(localStorage.getItem(STORAGE_KEYS.LEDGER) || '[]');
-  const today = new Date().toLocaleDateString();
+  const today = new Date().toISOString().split('T')[0];
   if (ledger.find(l => l.date === today)) return;
   ledger.unshift({ date: today, accuOdds: daily100?.combinedOdds?.toFixed(2) || 'N/A', valueBets: top20?.length || 0, result: 'pending', legs: daily100?.legs?.length || 0 });
   if (ledger.length > 60) ledger.pop();
@@ -1895,7 +1898,7 @@ function clearLedger() {
 function exportSlip() {
   const results = JSON.parse(localStorage.getItem(STORAGE_KEYS.LAST_RESULTS) || '{}');
   if (!results.daily100?.legs?.length) { showToast('No slip to copy', 'red'); return; }
-  const date = new Date().toLocaleDateString();
+  const date = new Date().toISOString().split('T')[0];
   let text = `🎯 FOOTBALL ORACLE v7.0 — ACCU SNIPER\n📅 ${date}\n${'='.repeat(38)}\n🌍 GLOBAL SCAN · STRICT PATTERNS ONLY\n✅ DRAW HUNTER + GG+O2.5 + UPSET VALUE\n✅ AI VERIFIED (20%+ EDGE)\n🎯 TARGET: 100+ COMBINED ODDS\n${'='.repeat(38)}\n\n`;
   results.daily100.legs.forEach((leg, i) => {
     text += `${i+1}. ${leg.match}\n   📌 ${leg.market} @ ${leg.odds.toFixed(2)}\n   📊 ${leg.reason}\n\n`;
