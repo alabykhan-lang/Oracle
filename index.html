@@ -319,7 +319,7 @@
       <div class="pulse-dot"></div>
       <div>
         <div class="bebas text-xl logo-glow" style="color:var(--gold);letter-spacing:2px;">FOOTBALL ORACLE</div>
-        <div class="mono text-xs" style="color:var(--text-muted);font-size:0.58rem;letter-spacing:1px;">GLOBAL INTELLIGENCE SYSTEM v7.1 · DIRECT API · x-apisports-key</div>
+        <div class="mono text-xs" style="color:var(--text-muted);font-size:0.58rem;letter-spacing:1px;">GLOBAL INTELLIGENCE SYSTEM v7.2 · DIRECT API · x-apisports-key</div>
         <!-- Live API Status Row -->
         <div class="api-status-row" id="headerStatusRow">
           <span class="api-dot grey" id="hdrFootballDot"><span class="dot"></span>API-FOOTBALL</span>
@@ -483,7 +483,7 @@
       <div>
         <div class="section-label mb-1">API-FOOTBALL KEY (api-sports.io)</div>
         <input class="oracle-input" id="settingFootballKey" type="password" placeholder="Enter your x-apisports-key...">
-        <div class="mono mt-1" style="color:var(--text-muted);font-size:0.58rem;">Used as x-apisports-key header → v3.football.api-sports.io (direct)</div>
+        <div class="mono mt-1" style="color:var(--text-muted);font-size:0.58rem;">Used as x-apisports-key header → v3.football.api-sports.io (direct, CORS-safe)</div>
       </div>
       <div>
         <div class="section-label mb-1">THE ODDS API KEY</div>
@@ -520,7 +520,7 @@
 
     <div class="mt-4 p-3 rounded" style="background:rgba(0,194,255,0.05);border:1px solid rgba(0,194,255,0.15);">
       <div class="mono" style="color:var(--blue-accent);font-size:0.62rem;line-height:1.6;">
-        🚀 v7.1: DIRECT API — x-apisports-key (CORS-safe)<br>
+        🚀 v7.2: DIRECT API — x-apisports-key (CORS-safe)<br>
         🔑 API-Football: x-apisports-key → v3.football.api-sports.io<br>
         📡 Odds API: direct fetch, apiKey param, 24-48h window<br>
         🎯 Accu Sniper: 100+ odds via Strict Pattern selection<br>
@@ -621,12 +621,10 @@ async function testConnections() {
   box.innerHTML = '<div class="mono text-xs" style="color:var(--text-muted);">Testing connections (direct fetch)...</div>';
   const results = [];
 
-  // ── API-Football (api-sports.io direct, x-apisports-key) ──
+  // ── API-Football (api-sports.io, x-apisports-key) ──
   try {
     const r = await fetch('https://v3.football.api-sports.io/status', {
-      headers: {
-        'x-apisports-key': s.footballKey
-      },
+      headers: { 'x-apisports-key': s.footballKey },
       signal: AbortSignal.timeout(10000)
     });
     const d = await r.json();
@@ -735,9 +733,9 @@ function valueEdge(ourProb, marketOdds) {
 function fairOdds(prob) { return prob > 0 ? (1 / prob).toFixed(2) : '∞'; }
 
 // ============================================================
-//  API-FOOTBALL — DIRECT FETCH (api-sports.io endpoint)
-//  v7.1: Uses x-apisports-key header (NOT x-rapidapi-key).
-//  v3.football.api-sports.io supports CORS for browser calls.
+//  API-FOOTBALL — DIRECT FETCH (api-sports.io)
+//  v7.2: Uses x-apisports-key (NOT x-rapidapi-key).
+//  v3.football.api-sports.io allows CORS from browser.
 // ============================================================
 async function apfGet(endpoint, params, key) {
   const base = `https://v3.football.api-sports.io/${endpoint}`;
@@ -745,9 +743,7 @@ async function apfGet(endpoint, params, key) {
   Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
 
   const r = await fetch(url.toString(), {
-    headers: {
-      'x-apisports-key': key
-    },
+    headers: { 'x-apisports-key': key },
     signal: AbortSignal.timeout(15000)
   });
 
@@ -758,14 +754,18 @@ async function apfGet(endpoint, params, key) {
 }
 
 async function getFixturesToday(key, season) {
-  // v7.0: Fetch today AND tomorrow to widen the 24-48h fixture pool
+  // v7.2: Fetch today AND tomorrow. Do NOT pass season to /fixtures?date=
+  // because the season param filters to a specific league-season and can
+  // return 0 when leagues span different season years. Date-only is correct.
   const today = new Date();
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
   const fmt = d => d.toISOString().split('T')[0];
+  const todayStr = fmt(today);
+  const tomorrowStr = fmt(tomorrow);
   try {
     const [todayFix, tomorrowFix] = await Promise.all([
-      apfGet('fixtures', { date: fmt(today), season }, key),
-      apfGet('fixtures', { date: fmt(tomorrow), season }, key)
+      apfGet('fixtures', { date: todayStr }, key),
+      apfGet('fixtures', { date: tomorrowStr }, key)
     ]);
     const combined = [...(todayFix||[]), ...(tomorrowFix||[])];
     // Deduplicate by fixture id
@@ -807,12 +807,17 @@ async function getRecentFixtures(key, teamId, last) {
 //  Date filtering: keep only events commencing in next 48 hours.
 // ============================================================
 function filterNext48h(events) {
-  const now = Date.now();
-  const cutoff = now + (48 * 60 * 60 * 1000);
+  // v7.2: Include matches that started today (don't require t >= now)
+  // and extend window to 72h to catch tomorrow evening fixtures.
+  // Start of today = midnight local time.
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const startMs = todayStart.getTime();
+  const cutoff = Date.now() + (72 * 60 * 60 * 1000);
   return events.filter(ev => {
-    if (!ev.commence_time) return true; // keep if no date field
+    if (!ev.commence_time) return true;
     const t = new Date(ev.commence_time).getTime();
-    return t >= now && t <= cutoff;
+    return t >= startMs && t <= cutoff;
   });
 }
 
@@ -865,9 +870,9 @@ async function getOddsGlobal(oddsKey, logFn) {
     if (i + 5 < sportKeys.length) await new Promise(r => setTimeout(r, 200)); // brief rate-limit pause
   }
 
-  // v7.0: Filter to next 24-48h window
+  // v7.2: Filter to today + next 72h window
   const filtered = filterNext48h(all);
-  logFn(`✅ Raw events: ${all.length} → After 48h filter: ${filtered.length} (from ${leaguesWithData} leagues)`);
+  logFn(`✅ Raw events: ${all.length} → After time filter: ${filtered.length} (from ${leaguesWithData} leagues)`);
 
   window._oracleZeroMatchFlag = filtered.length === 0 && sportKeys.length >= 10;
   return filtered;
@@ -896,7 +901,7 @@ async function getOddsBackupRegion(oddsKey, logFn) {
   }
   // 48h filter
   const filtered = filterNext48h(all);
-  logFn(`✅ Extended scan: ${all.length} raw → ${filtered.length} within 48h`);
+  logFn(`✅ Extended scan: ${all.length} raw → ${filtered.length} within window`);
   return filtered;
 }
 
@@ -1041,8 +1046,9 @@ async function runScan() {
 
   try {
     // ── STEP 1: Fixtures from API-Football (today + tomorrow) ──
-    setProgress(5, `🌍 Fetching fixtures for ${new Date().toISOString().split('T')[0]}...`);
-    addScanLog(`📡 Connecting to v3.football.api-sports.io (x-apisports-key)... Scanning ${new Date().toISOString().split('T')[0]}`);
+    const scanDate = new Date().toISOString().split('T')[0];
+    setProgress(5, `🌍 Fetching fixtures for ${scanDate}...`);
+    addScanLog(`📡 Connecting to v3.football.api-sports.io — scanning ${scanDate}...`);
 
     let fixtures = [];
     let apfOnline = false;
@@ -1081,9 +1087,9 @@ async function runScan() {
     // Build stubs if API-Football offline
     if (!apfOnline) {
       if (!oddsEvents.length) {
-        addScanLog(`⚠ Odds API also returned 0 matches in 48h window for ${new Date().toISOString().split('T')[0]}`);
-        showToast('⚠ No fixtures today. Try Extended 48h Scan.', 'gold');
-        setProgress(0, `⚠ No fixtures found for ${new Date().toISOString().split('T')[0]} — try Extended 48h Scan`);
+        addScanLog(`⚠ Odds API also returned 0 matches for ${scanDate}`);
+        showToast(`⚠ No fixtures for ${scanDate}. Try Extended Scan.`, 'gold');
+        setProgress(0, `⚠ No fixtures found for ${scanDate} — try Extended Scan`);
         document.getElementById('backupRegionWrap').style.display = 'block';
         return;
       }
@@ -1208,20 +1214,20 @@ async function runScan() {
     setProgress(97, '💾 Saving...');
     const results = { daily100, top20, analyzed, timestamp: Date.now(), aiInsights };
     localStorage.setItem(STORAGE_KEYS.LAST_RESULTS, JSON.stringify(results));
-    localStorage.setItem(STORAGE_KEYS.LAST_SCAN_DATE, new Date().toLocaleDateString());
+    localStorage.setItem(STORAGE_KEYS.LAST_SCAN_DATE, scanDate + ' @ ' + new Date().toLocaleTimeString());
 
     renderAll(results);
     updateStats(daily100, top20, analyzed);
     setProgress(100, `✅ Done — ${analyzed.length} matches · ${top20.length} value bets · ${daily100.legs?.length||0} accu legs`);
 
-    document.getElementById('lastScan').textContent = `LAST SCAN: ${new Date().toISOString().split('T')[0]} @ ${new Date().toLocaleTimeString()}`;
+    document.getElementById('lastScan').textContent = `LAST SCAN: ${scanDate} @ ${new Date().toLocaleTimeString()}`;
     document.getElementById('scanStats').style.display = 'block';
     document.getElementById('matchesFound').textContent = `${analyzed.length} MATCHES`;
     document.getElementById('valueFound').textContent = `${top20.length} VALUE BETS`;
 
     logToLedger(daily100, top20); renderLedger();
     addScanLog(`🎯 Accumulator: ${daily100.legs?.length||0} legs @ ${daily100.combinedOdds?.toFixed(0)}x odds`);
-    showToast(`✅ Scan done! ${daily100.legs?.length||0} legs @ ${daily100.combinedOdds?.toFixed(0)}x`, 'emerald');
+    showToast(`✅ ${scanDate}: ${analyzed.length} matches · ${daily100.legs?.length||0} legs @ ${daily100.combinedOdds?.toFixed(0)}x`, 'emerald');
 
     document.getElementById('backupRegionWrap').style.display =
       (window._oracleZeroMatchFlag && oddsEvents.length === 0) ? 'block' : 'none';
@@ -1309,10 +1315,10 @@ async function runBackupRegionScan() {
     const top20 = buildTop20(analyzed, s.minEdge, {});
     const results = { daily100, top20, analyzed, timestamp: Date.now(), aiInsights: {} };
     localStorage.setItem(STORAGE_KEYS.LAST_RESULTS, JSON.stringify(results));
-    localStorage.setItem(STORAGE_KEYS.LAST_SCAN_DATE, new Date().toLocaleDateString() + ' (extended)');
+    localStorage.setItem(STORAGE_KEYS.LAST_SCAN_DATE, new Date().toISOString().split('T')[0] + ' (extended)');
     renderAll(results); updateStats(daily100, top20, analyzed);
     setProgress(100, `✅ Extended scan done — ${analyzed.length} matches`);
-    document.getElementById('lastScan').textContent = `LAST SCAN: EXTENDED 48H`;
+    document.getElementById('lastScan').textContent = `LAST SCAN: ${new Date().toISOString().split('T')[0]} (EXTENDED)`;
     document.getElementById('scanStats').style.display = 'block';
     document.getElementById('matchesFound').textContent = `${analyzed.length} MATCHES`;
     document.getElementById('valueFound').textContent = `${top20.length} VALUE BETS`;
@@ -1833,7 +1839,7 @@ function updateStats(daily100, top20, analyzed) {
 // ============================================================
 function logToLedger(daily100, top20) {
   const ledger = JSON.parse(localStorage.getItem(STORAGE_KEYS.LEDGER) || '[]');
-  const today = new Date().toLocaleDateString();
+  const today = new Date().toISOString().split('T')[0];
   if (ledger.find(l => l.date === today)) return;
   ledger.unshift({ date: today, accuOdds: daily100?.combinedOdds?.toFixed(2) || 'N/A', valueBets: top20?.length || 0, result: 'pending', legs: daily100?.legs?.length || 0 });
   if (ledger.length > 60) ledger.pop();
