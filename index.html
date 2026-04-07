@@ -319,7 +319,7 @@
       <div class="pulse-dot"></div>
       <div>
         <div class="bebas text-xl logo-glow" style="color:var(--gold);letter-spacing:2px;">FOOTBALL ORACLE</div>
-        <div class="mono text-xs" style="color:var(--text-muted);font-size:0.58rem;letter-spacing:1px;">GLOBAL INTELLIGENCE SYSTEM v7.0 · DIRECT API · NO PROXY</div>
+        <div class="mono text-xs" style="color:var(--text-muted);font-size:0.58rem;letter-spacing:1px;">GLOBAL INTELLIGENCE SYSTEM v7.1 · DIRECT API · x-apisports-key</div>
         <!-- Live API Status Row -->
         <div class="api-status-row" id="headerStatusRow">
           <span class="api-dot grey" id="hdrFootballDot"><span class="dot"></span>API-FOOTBALL</span>
@@ -481,9 +481,9 @@
 
     <div class="space-y-3">
       <div>
-        <div class="section-label mb-1">API-FOOTBALL KEY (RapidAPI)</div>
-        <input class="oracle-input" id="settingFootballKey" type="password" placeholder="Enter x-rapidapi-key...">
-        <div class="mono mt-1" style="color:var(--text-muted);font-size:0.58rem;">Used as x-rapidapi-key header → api-football.v3.rapi.net</div>
+        <div class="section-label mb-1">API-FOOTBALL KEY (api-sports.io)</div>
+        <input class="oracle-input" id="settingFootballKey" type="password" placeholder="Enter your x-apisports-key...">
+        <div class="mono mt-1" style="color:var(--text-muted);font-size:0.58rem;">Used as x-apisports-key header → v3.football.api-sports.io (direct)</div>
       </div>
       <div>
         <div class="section-label mb-1">THE ODDS API KEY</div>
@@ -520,8 +520,8 @@
 
     <div class="mt-4 p-3 rounded" style="background:rgba(0,194,255,0.05);border:1px solid rgba(0,194,255,0.15);">
       <div class="mono" style="color:var(--blue-accent);font-size:0.62rem;line-height:1.6;">
-        🚀 v7.0: DIRECT API — zero CORS proxies<br>
-        🔑 API-Football: x-rapidapi-key header (RapidAPI endpoint)<br>
+        🚀 v7.1: DIRECT API — x-apisports-key (CORS-safe)<br>
+        🔑 API-Football: x-apisports-key → v3.football.api-sports.io<br>
         📡 Odds API: direct fetch, apiKey param, 24-48h window<br>
         🎯 Accu Sniper: 100+ odds via Strict Pattern selection<br>
         ✅ Connection status live in header bar
@@ -557,13 +557,10 @@ const STORAGE_KEYS = {
   LAST_SCAN_DATE: 'oracle_last_scan_date'
 };
 
-/// Auto-derive season: Aug–May = previous year, Jun–Dec = current year
-// Month 0 = January, 7 = August
+// Auto-derive season: Aug–May = previous year, Jun–Dec = current year
 function getCurrentSeason() {
   const now = new Date();
-  const month = now.getMonth();
-  const year = now.getFullYear();
-  return month >= 7 ? year : year - 1;
+  return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
 }
 
 const VALUE_GAP_THRESHOLD = 20; // percent
@@ -624,27 +621,21 @@ async function testConnections() {
   box.innerHTML = '<div class="mono text-xs" style="color:var(--text-muted);">Testing connections (direct fetch)...</div>';
   const results = [];
 
-  // ── API-Football (RapidAPI direct) ──
+  // ── API-Football (api-sports.io direct, x-apisports-key) ──
   try {
-    if (!s.footballKey || s.footballKey.trim() === '') {
-      setHeaderDot('hdrFootballDot', 'red');
-      results.push(`<div class="mono text-xs" style="color:var(--red);">❌ API-Football: No API key provided</div>`);
+    const r = await fetch('https://v3.football.api-sports.io/status', {
+      headers: {
+        'x-apisports-key': s.footballKey
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+    const d = await r.json();
+    if (d?.response?.account?.firstname) {
+      setHeaderDot('hdrFootballDot', 'green');
+      results.push(`<div class="mono text-xs" style="color:var(--emerald);">✅ API-Football: Connected as ${d.response.account.firstname} (${d.response.requests.current}/${d.response.requests.limit_day} req/day)</div>`);
     } else {
-      const r = await fetch('https://api-football.v3.rapi.net/v3/status', {
-        headers: {
-          'x-rapidapi-key': s.footballKey.trim(),
-          'x-rapidapi-host': 'api-football.v3.rapi.net'
-        },
-        signal: AbortSignal.timeout(10000)
-      });
-      const d = await r.json();
-      if (d?.response?.account?.firstname) {
-        setHeaderDot('hdrFootballDot', 'green');
-        results.push(`<div class="mono text-xs" style="color:var(--emerald);">✅ API-Football: Connected as ${d.response.account.firstname} (${d.response.requests.current}/${d.response.requests.limit_day} req/day)</div>`);
-      } else {
-        setHeaderDot('hdrFootballDot', 'red');
-        results.push(`<div class="mono text-xs" style="color:var(--red);">❌ API-Football: ${JSON.stringify(d?.errors || d?.message || 'Invalid key')}</div>`);
-      }
+      setHeaderDot('hdrFootballDot', 'red');
+      results.push(`<div class="mono text-xs" style="color:var(--red);">❌ API-Football: ${JSON.stringify(d?.errors || d?.message || 'Invalid key')}</div>`);
     }
   } catch(e) {
     setHeaderDot('hdrFootballDot', 'red');
@@ -744,53 +735,33 @@ function valueEdge(ourProb, marketOdds) {
 function fairOdds(prob) { return prob > 0 ? (1 / prob).toFixed(2) : '∞'; }
 
 // ============================================================
-//  API-FOOTBALL — DIRECT FETCH (RapidAPI endpoint)
-//  v7.0: No proxy. Sends x-rapidapi-key + x-rapidapi-host headers.
-//  Vercel HTTPS environment handles CORS natively.
+//  API-FOOTBALL — DIRECT FETCH (api-sports.io endpoint)
+//  v7.1: Uses x-apisports-key header (NOT x-rapidapi-key).
+//  v3.football.api-sports.io supports CORS for browser calls.
 // ============================================================
 async function apfGet(endpoint, params, key) {
-  if (!key || key.trim() === '') {
-    throw new Error('API-Football key is missing or empty');
-  }
-
-  const base = `https://api-football.v3.rapi.net/v3/${endpoint}`;
+  const base = `https://v3.football.api-sports.io/${endpoint}`;
   const url = new URL(base);
   Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
 
-  try {
-    const r = await fetch(url.toString(), {
-      headers: {
-        'x-rapidapi-key': key.trim(),
-        'x-rapidapi-host': 'api-football.v3.rapi.net'
-      },
-      signal: AbortSignal.timeout(15000)
-    });
+  const r = await fetch(url.toString(), {
+    headers: {
+      'x-apisports-key': key
+    },
+    signal: AbortSignal.timeout(15000)
+  });
 
-    if (!r.ok) {
-      const errorText = await r.text();
-      throw new Error(`API-Football HTTP ${r.status}: ${errorText}`);
-    }
-    const d = await r.json();
-    if (d.errors && Object.keys(d.errors).length) {
-      throw new Error(`API-Football Error: ${JSON.stringify(d.errors)}`);
-    }
-    return d.response || [];
-  } catch(e) {
-    console.error(`apfGet(${endpoint}) failed:`, e.message);
-    throw e;
-  }
+  if (!r.ok) throw new Error(`API-Football HTTP ${r.status}`);
+  const d = await r.json();
+  if (d.errors && Object.keys(d.errors).length) throw new Error(JSON.stringify(d.errors));
+  return d.response || [];
 }
 
 async function getFixturesToday(key, season) {
   // v7.0: Fetch today AND tomorrow to widen the 24-48h fixture pool
-  // Always use current date/time
   const today = new Date();
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
   const fmt = d => d.toISOString().split('T')[0];
-
-  console.log(`Fetching fixtures for: ${fmt(today)} (today) and ${fmt(tomorrow)} (tomorrow)`);
-
   try {
     const [todayFix, tomorrowFix] = await Promise.all([
       apfGet('fixtures', { date: fmt(today), season }, key),
@@ -839,40 +810,25 @@ function filterNext48h(events) {
   const now = Date.now();
   const cutoff = now + (48 * 60 * 60 * 1000);
   return events.filter(ev => {
-    if (!ev.commence_time) return false;
+    if (!ev.commence_time) return true; // keep if no date field
     const t = new Date(ev.commence_time).getTime();
-    if (isNaN(t)) {
-      console.warn('Invalid commence_time for event:', ev);
-      return false;
-    }
     return t >= now && t <= cutoff;
   });
 }
 
 async function getAllSoccerSportKeys(oddsKey) {
-  try {
-    const r = await fetch(`https://api.the-odds-api.com/v4/sports/?apiKey=${oddsKey}`, {
-      signal: AbortSignal.timeout(12000)
-    });
-    if (!r.ok) {
-      const errorText = await r.text();
-      throw new Error(`Odds API sports HTTP ${r.status}: ${errorText}`);
-    }
-    const sports = await r.json();
-    if (!Array.isArray(sports)) {
-      console.warn('Odds API returned non-array response:', sports);
-      return [];
-    }
-    return sports
-      .filter(s => s.active && (
-        /soccer|football/i.test(s.group || '') ||
-        /soccer|football/i.test(s.key || '')
-      ))
-      .map(s => s.key);
-  } catch(e) {
-    console.error('Error fetching soccer sport keys:', e.message);
-    throw e;
-  }
+  const r = await fetch(`https://api.the-odds-api.com/v4/sports/?apiKey=${oddsKey}`, {
+    signal: AbortSignal.timeout(12000)
+  });
+  if (!r.ok) throw new Error(`Odds API sports HTTP ${r.status}`);
+  const sports = await r.json();
+  if (!Array.isArray(sports)) return [];
+  return sports
+    .filter(s => s.active && (
+      /soccer|football/i.test(s.group || '') ||
+      /soccer|football/i.test(s.key || '')
+    ))
+    .map(s => s.key);
 }
 
 async function getOddsForSport(oddsKey, sport) {
@@ -1085,13 +1041,13 @@ async function runScan() {
 
   try {
     // ── STEP 1: Fixtures from API-Football (today + tomorrow) ──
-    setProgress(5, '🌍 Fetching 24-48h fixtures (direct API-Football)...');
-    addScanLog('📡 Connecting to api-football.v3.rapi.net (x-rapidapi-key)...');
+    setProgress(5, `🌍 Fetching fixtures for ${new Date().toISOString().split('T')[0]}...`);
+    addScanLog(`📡 Connecting to v3.football.api-sports.io (x-apisports-key)... Scanning ${new Date().toISOString().split('T')[0]}`);
 
     let fixtures = [];
     let apfOnline = false;
 
-    if (s.footballKey && s.footballKey.trim() !== '') {
+    if (s.footballKey) {
       try {
         fixtures = await getFixturesToday(s.footballKey, s.season);
         if (fixtures.length > 0) {
@@ -1104,7 +1060,7 @@ async function runScan() {
         }
       } catch(e) {
         setHeaderDot('hdrFootballDot', 'red');
-        addScanLog(`⚠ API-Football failed: ${e.message} — Odds-API fixture mode`);
+        addScanLog(`⚠ API-Football failed (${e.message}) — Odds-API fixture mode`);
       }
     } else {
       addScanLog('ℹ API-Football key not set — Odds-API only mode');
@@ -1125,9 +1081,9 @@ async function runScan() {
     // Build stubs if API-Football offline
     if (!apfOnline) {
       if (!oddsEvents.length) {
-        addScanLog('⚠ Odds API also returned 0 matches in 48h window');
-        showToast('⚠ 0 matches found. Try Extended 48h Scan.', 'gold');
-        setProgress(0, '⚠ 0 matches — try Extended 48h Scan');
+        addScanLog(`⚠ Odds API also returned 0 matches in 48h window for ${new Date().toISOString().split('T')[0]}`);
+        showToast('⚠ No fixtures today. Try Extended 48h Scan.', 'gold');
+        setProgress(0, `⚠ No fixtures found for ${new Date().toISOString().split('T')[0]} — try Extended 48h Scan`);
         document.getElementById('backupRegionWrap').style.display = 'block';
         return;
       }
@@ -1258,7 +1214,7 @@ async function runScan() {
     updateStats(daily100, top20, analyzed);
     setProgress(100, `✅ Done — ${analyzed.length} matches · ${top20.length} value bets · ${daily100.legs?.length||0} accu legs`);
 
-    document.getElementById('lastScan').textContent = `LAST SCAN: TODAY ${new Date().toLocaleTimeString()}`;
+    document.getElementById('lastScan').textContent = `LAST SCAN: ${new Date().toISOString().split('T')[0]} @ ${new Date().toLocaleTimeString()}`;
     document.getElementById('scanStats').style.display = 'block';
     document.getElementById('matchesFound').textContent = `${analyzed.length} MATCHES`;
     document.getElementById('valueFound').textContent = `${top20.length} VALUE BETS`;
